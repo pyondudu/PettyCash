@@ -178,10 +178,10 @@ onMounted(load)
 
     <!-- 封存 -->
     <template v-else-if="tab === 'archive'">
-      <p class="muted small">依申請編號的月份整月封存：該月每一筆都「已入帳滿 4 個月」或「已退回」才可以。封存會先下載照片 zip，再刪除雲端照片，申請紀錄保留。</p>
+      <p class="muted small">封存以「送出申請的月份」為單位，當月每一筆申請都「已結束」才能封存整個月。「已結束」是指已入帳滿 4 個月，或是主管退回、退回的申請。<br />封存時會先下載當月照片的 zip，再刪除雲端照片；申請紀錄會保留。</p>
       <p v-if="archiving" class="msg">{{ archiving }}</p>
       <table class="month-table">
-        <thead><tr><th>月份</th><th class="num">申請</th><th class="num">未結束</th><th class="num">未封存</th><th></th></tr></thead>
+        <thead><tr><th>月份</th><th class="num">申請</th><th class="num">尚未結束</th><th class="num">尚未封存</th><th></th></tr></thead>
         <tbody>
           <tr v-for="m in months" :key="m.month">
             <td>{{ fmtMonth(m.month) }}</td>
