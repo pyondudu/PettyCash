@@ -35,7 +35,7 @@ watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
     <header class="req-head" @click="expanded = !expanded">
       <div class="req-title">
         <span class="pill" :class="request.status">{{ STATUS[request.status].label }}</span>
-        <strong>{{ request.request_no }}</strong>
+        <strong>{{ fmtDate(request.fill_date) }}</strong>
         <span v-if="showApplicant">{{ request.applicant_name }}<span v-if="request.applicant_unit" class="muted">（{{ request.applicant_unit }}）</span></span>
       </div>
       <div class="req-amount">${{ fmtMoney(request.amount) }}</div>
@@ -47,7 +47,7 @@ watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
 
     <div v-if="expanded" class="req-body">
       <dl class="kv">
-        <dt>填寫日期</dt><dd>{{ fmtDate(request.fill_date) }}</dd>
+        <dt>編號</dt><dd>{{ request.request_no }}</dd>
         <template v-if="request.note"><dt>備註</dt><dd class="pre">{{ request.note }}</dd></template>
         <dt>送出</dt><dd>{{ submittedText(request.applicant_name, request.submitted_at) }}</dd>
         <template v-if="request.approved_at"><dt>核准</dt><dd>{{ approvedText(request.approver_name, request.approved_at) }}</dd></template>

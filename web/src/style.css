@@ -226,6 +226,10 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
   border: none; background: rgb(255 255 255 / 0.15); color: #fff; font-size: 1.25rem; cursor: pointer;
 }
 
+/* ── 搜尋 ── */
+.search-bar { display: grid; grid-template-columns: 1fr 1fr 1.4fr auto; gap: 10px; align-items: end; padding: 12px; }
+.search-actions { display: flex; gap: 6px; }
+
 /* ── 管理 ── */
 .seg-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
 .seg-tabs button {
@@ -275,6 +279,9 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
 /* ── Mobile ── */
 @media (max-width: 720px) {
   .grid, .grid4 { grid-template-columns: 1fr; }
+  .search-bar { grid-template-columns: 1fr 1fr; }
+  .search-bar label:nth-of-type(3), .search-actions { grid-column: span 2; }
+  .search-actions .btn { flex: 1; }
   .grid .span2 { grid-column: auto; }
   .voucher-fields { grid-template-columns: 1fr; }
   .voucher-fields .field-msg, .voucher-fields .field-hint { grid-column: auto; }
