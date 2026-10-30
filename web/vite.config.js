@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 // 網頁名稱與主題色；圖示放在 public/（app-icon.svg、icon-192.png、icon-512.png）
-const TITLE = '聲智零用金申請'
+const TITLE = '零用金申請'
 const SHORT_NAME = '零用金'
 const THEME_COLOR = '#1a5fa8'
 // 每次建置的版本號；同時寫進程式與 version.json，App 比對兩者就知道有沒有新版

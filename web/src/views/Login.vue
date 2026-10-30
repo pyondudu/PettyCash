@@ -2,9 +2,8 @@
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { toLoginEmail } from '../lib/petty'
+import companyLogo from '../assets/company-logo.png'
 
-const ICON = import.meta.env.BASE_URL + 'app-icon.svg'
-const SITE_NAME = __SITE_NAME__
 const email = ref('')
 const password = ref('')
 const msg = ref('')
@@ -24,8 +23,8 @@ async function submit() {
 
 <template>
   <div class="center-box card login">
-    <img :src="ICON" alt="" width="56" height="56" />
-    <h1>{{ SITE_NAME }}</h1>
+    <img :src="companyLogo" alt="聲智科技" class="login-logo" />
+    <h1>零用金申請</h1>
     <form @submit.prevent="submit">
       <label>帳號<input v-model="email" type="text" required autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="例：alice" /></label>
       <label>密碼<input v-model="password" type="password" required autocomplete="current-password" /></label>
