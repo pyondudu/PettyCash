@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { printFields } from '../lib/petty'
+import approvedStamp from '../assets/approved.png'
 
 // 照「申請單格式.png」重畫的 A5 橫式零用金申請單（一筆一頁）
 const props = defineProps({
@@ -8,6 +9,10 @@ const props = defineProps({
   keeper: { type: String, default: '' },
 })
 const f = computed(() => printFields(props.request, props.keeper))
+// 總經理、表單申請人欄：姓名後換行（「姓名」／「已於 … 核准／送出」）
+const breakName = (t) => t.replace(' 已於 ', '\n已於 ')
+const approverLines = computed(() => breakName(f.value.approver))
+const submitterLines = computed(() => breakName(f.value.submitter))
 </script>
 
 <template>
@@ -48,9 +53,13 @@ const f = computed(() => printFields(props.request, props.keeper))
         <tr class="r-sign">
           <td colspan="4">
             <div class="signs">
-              <div><div class="sign-label">總 經 理：</div><div class="sign-text">{{ f.approver }}</div></div>
+              <div class="sign-approver">
+                <div class="sign-label">總 經 理：</div>
+                <div class="sign-text">{{ approverLines }}</div>
+                <img v-if="f.approver" :src="approvedStamp" class="stamp" alt="核准" />
+              </div>
               <div><div class="sign-label">收款人：</div><div class="sign-text">{{ f.payee }}</div></div>
-              <div><div class="sign-label">表單申請人：</div><div class="sign-text">{{ f.submitter }}</div></div>
+              <div><div class="sign-label">表單申請人：</div><div class="sign-text">{{ submitterLines }}</div></div>
             </div>
           </td>
         </tr>
@@ -85,5 +94,8 @@ h1 { margin: 0; font-size: 9mm; font-weight: 700; letter-spacing: 0.5mm; line-he
 .signs > div { border-left: 0.25mm solid #000; text-align: center; padding: 1mm 1.5mm; }
 .signs > div:first-child { border-left: 0; }
 .sign-label { font-size: 4.4mm; }
-.sign-text { margin-top: 4mm; font-size: 3.4mm; line-height: 1.4; }
+.sign-text { margin-top: 3mm; font-size: 3.4mm; line-height: 1.4; white-space: pre-line; }
+.sign-approver { position: relative; }
+.sign-approver .sign-text { padding-right: 15mm; }
+.stamp { position: absolute; right: 1.5mm; bottom: 1.5mm; width: 14mm; height: 14mm; }
 </style>
