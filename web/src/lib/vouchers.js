@@ -14,7 +14,7 @@ export function releaseVouchers(list) {
 
 export function voucherError(v) {
   if (!v.file) return '請附照片'
-  if (!normalizeDate(v.date)) return '日期格式不正確'
+  if (!normalizeDate(v.date)) return '請選擇憑證日期'
   const a = normalizeAmount(v.amount)
   if (a === null || a <= 0) return '請填憑證金額'
   return null

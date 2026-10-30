@@ -101,7 +101,7 @@ async function submit() {
         <template #hint>
           <p class="muted small">
             還沒有收據可以先送出，之後在「我的申請」按「補憑證」。
-            每張憑證都要有照片、日期、金額，日期可寫 2026/9/30 或 115/9/30。
+            每張憑證都要有照片、日期、金額。
           </p>
         </template>
       </VoucherEditor>

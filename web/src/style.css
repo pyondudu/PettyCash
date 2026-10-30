@@ -195,7 +195,13 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
 .req-foot { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .req-foot .btn.link { margin-right: auto; }
 .no-voucher { font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
-.add-vouchers { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.add-vouchers {
+  margin-top: 12px; padding: 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+.add-vouchers .voucher-edit li { background: var(--surface); }
+.add-vouchers .voucher-edit li.bad { background: var(--danger-bg); }
 .req-foot .badge { background: var(--warn); }
 .reason-input { flex: 1 1 200px; width: auto; padding: 5px 8px; }
 .kv { display: grid; grid-template-columns: 5em 1fr; gap: 4px 12px; margin: 0; font-size: 0.9rem; }
