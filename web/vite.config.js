@@ -12,7 +12,7 @@ function siteFiles() {
   return {
     'manifest.webmanifest': JSON.stringify({
       name: TITLE, short_name: SHORT_NAME, start_url: './', scope: './', display: 'standalone',
-      background_color: '#faf9f5', theme_color: THEME_COLOR,
+      background_color: '#ffffff', theme_color: THEME_COLOR,
       icons: [
         { src: 'app-icon.svg', sizes: 'any', type: 'image/svg+xml' },
         { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
