@@ -1,0 +1,240 @@
+<script setup>
+import { computed, onMounted, ref } from 'vue'
+import { zipSync } from 'fflate'
+import { supabase } from '../lib/supabase'
+import { refreshCounts, errText } from '../lib/store'
+import {
+  STATUS, fmtMoney, todayTaipei, canTransition,
+  archiveMonths, archiveZipName, archivePhotoPath, fmtMonth, requestMonth,
+} from '../lib/petty'
+import { BUCKET, downloadPhoto, saveBlob } from '../lib/photos'
+import RequestCard from '../components/RequestCard.vue'
+import PrintSheet from '../components/PrintSheet.vue'
+
+const TABS = [
+  { key: 'approved', label: '待列印' },
+  { key: 'pending', label: STATUS.pending.label },
+  { key: 'printed', label: STATUS.printed.label },
+  { key: 'booked', label: STATUS.booked.label },
+  { key: 'rejected', label: STATUS.rejected.label },
+  { key: 'returned', label: STATUS.returned.label },
+  { key: 'archive', label: '封存' },
+]
+
+const rows = ref([])
+const keeper = ref('')
+const tab = ref('approved')
+const loading = ref(true)
+const msg = ref('')
+const busy = ref(false)
+const selected = ref(new Set())
+const disbursedDate = ref(todayTaipei())
+const preview = ref(null)        // 列印預覽中的申請（已套用核發日期）
+const returning = ref(null)      // 正在填退回原因的申請 id
+const reason = ref('')
+const archiving = ref('')        // 封存進度文字
+
+const counts = computed(() => Object.fromEntries(TABS.map((t) => [t.key, rows.value.filter((r) => r.status === t.key).length])))
+const list = computed(() => rows.value.filter((r) => r.status === tab.value))
+const selectable = computed(() => ['approved', 'printed'].includes(tab.value))
+const selectedRows = computed(() => list.value.filter((r) => selected.value.has(r.id)))
+const months = computed(() => archiveMonths(rows.value))
+
+async function load() {
+  loading.value = true
+  const [r, s] = await Promise.all([
+    supabase.from('petty_requests').select('*, petty_vouchers(*)').order('submitted_at', { ascending: false }),
+    supabase.from('petty_settings').select('value').eq('key', 'keeper_name').maybeSingle(),
+  ])
+  loading.value = false
+  if (r.error) msg.value = '讀取失敗：' + errText(r.error)
+  rows.value = r.data ?? []
+  keeper.value = s.data?.value ?? ''
+  selected.value = new Set([...selected.value].filter((id) => rows.value.some((x) => x.id === id && x.status === tab.value)))
+  refreshCounts()
+}
+
+function switchTab(key) {
+  tab.value = key
+  selected.value = new Set()
+  returning.value = null
+  msg.value = ''
+}
+
+function toggle(id) {
+  const s = new Set(selected.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  selected.value = s
+}
+
+function toggleAll() {
+  selected.value = selected.value.size === list.value.length ? new Set() : new Set(list.value.map((r) => r.id))
+}
+
+// ── 列印 ──
+function openPreview() {
+  msg.value = ''
+  if (!selectedRows.value.length) { msg.value = '請先勾選要列印的申請'; return }
+  if (!disbursedDate.value) { msg.value = '請選擇零用金核發日期'; return }
+  preview.value = selectedRows.value.map((r) => ({ ...r, disbursed_date: disbursedDate.value }))
+}
+
+async function printNow() {
+  window.print()
+  const n = preview.value.length
+  if (!confirm(`已經印好了嗎？\n按「確定」把這 ${n} 筆標為「已列印」，核發日期 ${disbursedDate.value.replaceAll('-', '/')}。`)) return
+  busy.value = true
+  const { error } = await supabase.from('petty_requests')
+    .update({ status: 'printed', disbursed_date: disbursedDate.value })
+    .in('id', preview.value.map((r) => r.id))
+  busy.value = false
+  if (error) { msg.value = '更新狀態失敗：' + errText(error); return }
+  preview.value = null
+  selected.value = new Set()
+  await load()
+}
+
+// ── 入帳、退回 ──
+async function markBooked() {
+  if (!selectedRows.value.length) { msg.value = '請先勾選申請'; return }
+  if (!confirm(`把 ${selectedRows.value.length} 筆標為「已入帳」？`)) return
+  busy.value = true
+  const { error } = await supabase.from('petty_requests').update({ status: 'booked' }).in('id', selectedRows.value.map((r) => r.id))
+  busy.value = false
+  if (error) { msg.value = '更新失敗：' + errText(error); return }
+  selected.value = new Set()
+  await load()
+}
+
+async function returnRequest(r) {
+  if (!reason.value.trim()) { msg.value = '請填寫退回原因'; return }
+  busy.value = true
+  const { error } = await supabase.from('petty_requests').update({ status: 'returned', reject_reason: reason.value }).eq('id', r.id)
+  busy.value = false
+  if (error) { msg.value = '退回失敗：' + errText(error); return }
+  returning.value = null
+  reason.value = ''
+  await load()
+}
+
+// ── 整月封存：下載 zip → 標記封存 → 刪雲端照片 ──
+async function archive(m) {
+  msg.value = ''
+  const reqs = rows.value.filter((r) => requestMonth(r.request_no) === m.month && !r.archived_at)
+  const vouchers = reqs.flatMap((r) => [...r.petty_vouchers].sort((a, b) => a.id - b.id)
+    .map((v, i) => ({ path: v.photo_path, name: archivePhotoPath(r.request_no, i) })))
+  if (!confirm(`封存 ${fmtMonth(m.month)}：${reqs.length} 筆申請、${vouchers.length} 張照片。\n會先下載 zip，確認保存好後才刪除雲端照片。`)) return
+  busy.value = true
+  try {
+    const files = {}
+    for (const [i, v] of vouchers.entries()) {
+      archiving.value = `下載照片 ${i + 1}／${vouchers.length}…`
+      files[v.name] = [await downloadPhoto(v.path), { level: 0 }]
+    }
+    archiving.value = '產生 zip…'
+    saveBlob(new Blob([zipSync(files)], { type: 'application/zip' }), archiveZipName(m.month))
+    archiving.value = ''
+    if (!confirm(`已下載「${archiveZipName(m.month)}」。\n請確認檔案已保存好（例如放到公司雲端硬碟），再按「確定」刪除雲端照片。\n按「取消」則不封存。`)) return
+    archiving.value = '標記封存…'
+    const { error } = await supabase.rpc('petty_archive_month', { p_month: m.month })
+    if (error) throw error
+    archiving.value = '刪除雲端照片…'
+    for (let i = 0; i < vouchers.length; i += 100) {
+      const { error: e } = await supabase.storage.from(BUCKET).remove(vouchers.slice(i, i + 100).map((v) => v.path))
+      if (e) throw e
+    }
+    msg.value = `${fmtMonth(m.month)} 已封存。`
+    await load()
+  } catch (e) {
+    msg.value = '封存失敗：' + errText(e)
+  } finally {
+    busy.value = false
+    archiving.value = ''
+  }
+}
+
+onMounted(load)
+</script>
+
+<template>
+  <div class="page">
+    <div class="page-head">
+      <h2>管理</h2>
+      <button class="btn small" @click="load">重新整理</button>
+    </div>
+    <div class="seg-tabs">
+      <button v-for="t in TABS" :key="t.key" :class="{ on: tab === t.key }" @click="switchTab(t.key)">
+        {{ t.label }}<span v-if="t.key !== 'archive'" class="cnt">{{ counts[t.key] }}</span>
+      </button>
+    </div>
+    <p v-if="msg" class="msg error">{{ msg }}</p>
+    <p v-if="loading" class="muted">載入中…</p>
+
+    <!-- 封存 -->
+    <template v-else-if="tab === 'archive'">
+      <p class="muted small">依申請編號的月份整月封存：該月每一筆都「已入帳滿 4 個月」或「已退回」才可以。封存會先下載照片 zip，再刪除雲端照片，申請紀錄保留。</p>
+      <p v-if="archiving" class="msg">{{ archiving }}</p>
+      <table class="month-table">
+        <thead><tr><th>月份</th><th class="num">申請</th><th class="num">未結束</th><th class="num">未封存</th><th></th></tr></thead>
+        <tbody>
+          <tr v-for="m in months" :key="m.month">
+            <td>{{ fmtMonth(m.month) }}</td>
+            <td class="num">{{ m.total }}</td>
+            <td class="num">{{ m.open }}</td>
+            <td class="num">{{ m.pending }}</td>
+            <td>
+              <button v-if="m.ready" class="btn small primary" :disabled="busy" @click="archive(m)">封存</button>
+              <span v-else-if="!m.pending" class="muted small">已封存</span>
+              <span v-else class="muted small">還不能封存</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-if="!months.length" class="muted center empty">還沒有申請。</p>
+    </template>
+
+    <template v-else>
+      <div v-if="selectable && list.length" class="batch-bar">
+        <label class="check"><input type="checkbox" :checked="selected.size === list.length" @change="toggleAll" />全選</label>
+        <span class="muted">已選 {{ selected.size }} 筆</span>
+        <span class="spacer" />
+        <label class="inline">核發日期<input v-model="disbursedDate" type="date" /></label>
+        <button class="btn small primary" :disabled="!selected.size" @click="openPreview">{{ tab === 'printed' ? '重印預覽' : '列印預覽' }}</button>
+        <button v-if="tab === 'printed'" class="btn small" :disabled="!selected.size || busy" @click="markBooked">標已入帳</button>
+      </div>
+      <p v-if="!list.length" class="muted center empty">沒有「{{ TABS.find((t) => t.key === tab).label }}」的申請。</p>
+      <div class="list">
+        <div v-for="r in list" :key="r.id" class="selectable-row">
+          <input v-if="selectable" type="checkbox" class="row-check" :checked="selected.has(r.id)" @change="toggle(r.id)" />
+          <RequestCard :request="r" show-applicant>
+            <template #actions>
+              <template v-if="canTransition(r.status, 'returned', 'admin')">
+                <template v-if="returning === r.id">
+                  <input v-model="reason" class="reason-input" placeholder="退回原因" />
+                  <button class="btn small danger" :disabled="busy" @click="returnRequest(r)">確定退回</button>
+                  <button class="btn small ghost" @click="returning = null">取消</button>
+                </template>
+                <button v-else class="btn small ghost danger" @click="returning = r.id; reason = ''">退回</button>
+              </template>
+            </template>
+          </RequestCard>
+        </div>
+      </div>
+    </template>
+
+    <!-- 列印預覽：螢幕上是全頁預覽，列印時只印申請單 -->
+    <Teleport to="body">
+      <div v-if="preview" class="print-preview">
+        <div class="print-toolbar no-print">
+          <span>列印預覽：{{ preview.length }} 張（A5 橫式），核發日期 {{ disbursedDate.replaceAll('-', '/') }}，合計 ${{ fmtMoney(preview.reduce((s, r) => s + r.amount, 0)) }}</span>
+          <span class="spacer" />
+          <button class="btn small" @click="preview = null">關閉</button>
+          <button class="btn small primary" :disabled="busy" @click="printNow">列印</button>
+        </div>
+        <div class="print-pages">
+          <PrintSheet v-for="r in preview" :key="r.id" :request="r" :keeper="keeper" />
+        </div>
+      </div>
+    </Teleport>
+  </div>
+</template>

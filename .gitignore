@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+# 根目錄的圖片（含申請單格式.png）不進版控
+/*.png
+/*.jpg
+/*.jpeg
+# 含同事姓名、帳號、公司 Email，只留在本機
+PLAN.md
+supabase/petty_members_seed.sql

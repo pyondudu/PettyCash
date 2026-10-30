@@ -1,0 +1,27 @@
+# 把網頁部署到 GitHub Pages（Repo → Settings → Pages → Source 選 GitHub Actions）
+# 需要 Secrets：SUPABASE_URL、SUPABASE_ANON_KEY
+name: Deploy web
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['web/**']
+permissions: { contents: read, pages: write, id-token: write }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: '${{ steps.deploy.outputs.page_url }}' }
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: web/dist }
+      - id: deploy
+        uses: actions/deploy-pages@v4

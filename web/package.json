@@ -1,0 +1,22 @@
+{
+  "name": "pettycash-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "fflate": "^0.8.2",
+    "vue": "^3.5.0",
+    "vue-router": "^4.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.1.0",
+    "vite": "^5.4.0"
+  }
+}
