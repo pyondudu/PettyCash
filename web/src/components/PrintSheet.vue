@@ -47,7 +47,7 @@ const submitterLines = computed(() => breakName(f.value.submitter))
           <td colspan="4">
             <div>1. 此單星號為必填欄位，請務必照實填寫。</div>
             <div>2. 申請金額不得高於$10,000，如高於$10,000請填寫請款單。</div>
-            <div>3.此單請申請人填完後簽名，並交由申請人主管核准簽名，最後由總經理簽名，即完成表單申請。</div>
+            <div>3.此單由申請人送出，經總經理/主管核准後，即完成表單申請。</div>
           </td>
         </tr>
         <tr class="r-sign">

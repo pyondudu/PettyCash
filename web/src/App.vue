@@ -57,6 +57,7 @@ async function logout() {
         </router-link>
         <div class="topbar-right">
           <span class="who">{{ store.member.name }}<span class="role-tag" :class="store.role">{{ ROLES[store.role] }}</span></span>
+          <router-link to="/password" class="btn ghost small">改密碼</router-link>
           <button class="btn ghost small" @click="logout">登出</button>
         </div>
       </header>

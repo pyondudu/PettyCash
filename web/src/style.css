@@ -166,6 +166,9 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
 .section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
 .form-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px; }
 .center-actions { justify-content: center; }
+.form.narrow { max-width: 420px; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.msg.success { color: var(--done); font-weight: 600; }
 .done-box { max-width: 480px; margin: 8vh auto 0; }
 
 .file-btn { position: relative; overflow: hidden; color: var(--accent-ink); font-size: 0.875rem; flex-direction: row; }

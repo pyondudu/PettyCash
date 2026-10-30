@@ -7,6 +7,7 @@ import Approve from './views/Approve.vue'
 import Admin from './views/Admin.vue'
 import Members from './views/Members.vue'
 import Settings from './views/Settings.vue'
+import Password from './views/Password.vue'
 import { store, refreshCounts } from './lib/store'
 import './style.css'
 
@@ -21,6 +22,7 @@ const router = createRouter({
     { path: '/admin', component: Admin, meta: { role: 'admin' } },
     { path: '/members', component: Members, meta: { role: 'admin' } },
     { path: '/settings', component: Settings, meta: { role: 'admin' } },
+    { path: '/password', component: Password },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })
