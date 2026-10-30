@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { printFields } from '../lib/petty'
 import approvedStamp from '../assets/approved.png'
 
-// 照「申請單格式.png」重畫的 A5 橫式零用金申請單（一筆一頁）
+// 照「申請單格式.png」重畫的零用金申請單，印在 A4 直式的上半部（一筆一頁）
 const props = defineProps({
   request: { type: Object, required: true },
   keeper: { type: String, default: '' },
@@ -69,7 +69,7 @@ const submitterLines = computed(() => breakName(f.value.submitter))
 </template>
 
 <style scoped>
-/* A5 橫式 210×148mm，邊界 6mm → 可印 198×136mm；高度留 1mm 避免溢出到第二頁 */
+/* A4 直式上半部（＝A5 橫式大小 210×148mm），邊界 6mm → 198×135mm */
 .sheet {
   width: 198mm; height: 135mm; box-sizing: border-box;
   background: #fff; color: #000;
@@ -83,7 +83,7 @@ th { background: #f2f2f2; font-weight: 400; white-space: nowrap; }
 .r-title { height: 21mm; }
 .r-title td { position: relative; text-align: center; vertical-align: top; padding-top: 1.5mm; }
 h1 { margin: 0; font-size: 9mm; font-weight: 700; letter-spacing: 0.5mm; line-height: 1.2; }
-.fill-date { position: absolute; left: 58%; bottom: 1.5mm; font-size: 4.2mm; text-align: left; }
+.fill-date { position: absolute; right: 3mm; bottom: 1.5mm; font-size: 4.2mm; text-align: right; }
 .r-line { height: 9.5mm; }
 .r-reason { height: 24mm; }
 .r-note { height: 17mm; }
@@ -96,6 +96,6 @@ h1 { margin: 0; font-size: 9mm; font-weight: 700; letter-spacing: 0.5mm; line-he
 .sign-label { font-size: 4.4mm; }
 .sign-text { margin-top: 3mm; font-size: 3.4mm; line-height: 1.4; white-space: pre-line; }
 .sign-approver { position: relative; }
-.sign-approver .sign-text { padding-right: 15mm; }
-.stamp { position: absolute; right: 1.5mm; bottom: 1.5mm; width: 14mm; height: 14mm; }
+.sign-approver .sign-text { margin-top: 8mm; }
+.stamp { position: absolute; right: 5mm; top: 4mm; width: 14mm; height: 14mm; }
 </style>

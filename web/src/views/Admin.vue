@@ -38,6 +38,12 @@ const counts = computed(() => Object.fromEntries(TABS.map((t) => [t.key, rows.va
 const list = computed(() => rows.value.filter((r) => r.status === tab.value))
 const selectable = computed(() => ['approved', 'printed'].includes(tab.value))
 const selectedRows = computed(() => list.value.filter((r) => selected.value.has(r.id)))
+// A4 直式一頁兩筆（上、下半部）
+const previewPages = computed(() => {
+  const pages = []
+  for (let i = 0; i < (preview.value?.length ?? 0); i += 2) pages.push(preview.value.slice(i, i + 2))
+  return pages
+})
 const months = computed(() => archiveMonths(rows.value))
 
 async function load() {
@@ -226,13 +232,17 @@ onMounted(load)
     <Teleport to="body">
       <div v-if="preview" class="print-preview">
         <div class="print-toolbar no-print">
-          <span>列印預覽：{{ preview.length }} 張（A5 橫式），核發日期 {{ disbursedDate.replaceAll('-', '/') }}，合計 ${{ fmtMoney(preview.reduce((s, r) => s + r.amount, 0)) }}</span>
+          <span>列印預覽：{{ preview.length }} 筆，A4 直式 {{ previewPages.length }} 頁（一頁上下兩筆，從中間虛線裁開），核發日期 {{ disbursedDate.replaceAll('-', '/') }}，合計 ${{ fmtMoney(preview.reduce((s, r) => s + r.amount, 0)) }}</span>
           <span class="spacer" />
           <button class="btn small" @click="preview = null">關閉</button>
           <button class="btn small primary" :disabled="busy" @click="printNow">列印</button>
         </div>
         <div class="print-pages">
-          <PrintSheet v-for="r in preview" :key="r.id" :request="r" :keeper="keeper" />
+          <div v-for="(page, i) in previewPages" :key="i" class="print-page">
+            <div v-for="r in page" :key="r.id" class="print-half">
+              <PrintSheet :request="r" :keeper="keeper" />
+            </div>
+          </div>
         </div>
       </div>
     </Teleport>
