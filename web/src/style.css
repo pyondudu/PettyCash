@@ -132,15 +132,19 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
 
 /* ── 版本與更新 ── */
 .update-banner {
-  display: flex; justify-content: center; align-items: center; gap: 10px;
-  padding: 6px 16px; padding-top: max(6px, env(safe-area-inset-top));
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface)); font-size: 0.9rem;
+  position: sticky; top: 0; z-index: 20;
+  display: flex; justify-content: center; align-items: center; gap: 12px;
+  padding: 8px 16px; padding-top: max(8px, env(safe-area-inset-top));
+  background: #db5b26; color: #fff; font-weight: 700;
 }
+/* 橘底上的按鈕：白底橘字 */
+.update-banner .btn.primary { background: #fff; border-color: #fff; color: #db5b26; }
 .version-bar {
   text-align: center; font-size: 0.8rem; color: var(--muted);
   padding: 0 16px max(16px, env(safe-area-inset-bottom));
 }
 .version-bar .btn.link { font-size: inherit; padding: 2px; }
+.version-bar .update-link { color: #db5b26; font-weight: 700; }
 
 /* ── Login ── */
 .center-box { width: calc(100% - 32px); max-width: 380px; margin: 12vh auto 0; text-align: center; }

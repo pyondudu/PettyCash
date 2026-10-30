@@ -77,7 +77,7 @@ async function logout() {
       <span v-if="update.status === 'checking'">檢查中…</span>
       <span v-else-if="update.status === 'latest'">已是最新版</span>
       <span v-else-if="update.status === 'error'">無法連線，稍後再試</span>
-      <button v-else-if="update.status === 'available'" class="btn link" @click="applyUpdate">有新版本，立即更新</button>
+      <button v-else-if="update.status === 'available'" class="btn link update-link" @click="applyUpdate">有新版本，立即更新</button>
       <button v-else class="btn link" @click="checkUpdate()">檢查更新</button>
     </footer>
   </template>
