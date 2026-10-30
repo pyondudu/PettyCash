@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  canTransition, canApprove, normalizeAmount, validateAmount, fmtMoney,
+  canTransition, canApprove, canAddVouchers, normalizeAmount, validateAmount, fmtMoney,
   normalizeDate, fmtDate, fmtTaipei, todayTaipei, approvedText, submittedText,
   voucherKey, findLocalDuplicates, voucherPairs, printFields, toLoginEmail,
   addMonths, requestFinished, requestMonth, archiveZipName, archivePhotoPath, archiveMonths,
@@ -74,6 +74,16 @@ test('狀態轉換依角色', () => {
   assert.ok(canTransition('approved', 'returned', 'admin'))
   assert.ok(!canTransition('booked', 'returned', 'admin'))
   assert.ok(!canTransition('pending', 'approved', 'applicant'))
+})
+
+test('入帳前可以補憑證', () => {
+  assert.ok(canAddVouchers({ status: 'pending' }))
+  assert.ok(canAddVouchers({ status: 'approved' }))
+  assert.ok(canAddVouchers({ status: 'printed' }))
+  assert.ok(!canAddVouchers({ status: 'booked' }))
+  assert.ok(!canAddVouchers({ status: 'rejected' }))
+  assert.ok(!canAddVouchers({ status: 'returned' }))
+  assert.ok(!canAddVouchers({ status: 'printed', archived_at: '2027-01-01T00:00:00Z' }))
 })
 
 test('只有主管能核准，包含自己的申請', () => {

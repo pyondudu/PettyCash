@@ -198,9 +198,40 @@ create trigger petty_requests_before_update
   for each row execute function public.petty_requests_before_update();
 
 -- ─────────────────────────────────────────────
--- RPC：送出申請（申請＋憑證在同一個交易內建立）
+-- 內部用：檢查並寫入憑證（只給 petty_submit、petty_add_vouchers 呼叫，網頁不能直接用）
+-- 照片要先上傳到 petty/<申請人 user id>/<申請 id>/ 底下
+-- ─────────────────────────────────────────────
+create or replace function public.petty_insert_vouchers(p_request_id uuid, p_vouchers jsonb)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  uid  uuid := auth.uid();
+  v    jsonb;
+  n    integer := 0;
+begin
+  if p_vouchers is null or jsonb_typeof(p_vouchers) = 'null' then
+    return 0;
+  end if;
+  if jsonb_typeof(p_vouchers) <> 'array' then
+    raise exception '憑證資料格式不正確';
+  end if;
+  for v in select * from jsonb_array_elements(p_vouchers) loop
+    if v->>'date' is null or v->>'amount' is null then
+      raise exception '每張憑證都要有日期和金額';
+    end if;
+    if coalesce(v->>'photo_path', '') not like uid::text || '/' || p_request_id::text || '/%'
+       or not exists (select 1 from storage.objects o where o.bucket_id = 'petty' and o.name = v->>'photo_path') then
+      raise exception '憑證照片不存在或路徑不正確';
+    end if;
+    insert into public.petty_vouchers (request_id, voucher_date, amount, photo_path)
+    values (p_request_id, (v->>'date')::date, (v->>'amount')::numeric, v->>'photo_path');
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+
+-- ─────────────────────────────────────────────
+-- RPC：送出申請（申請＋憑證在同一個交易內建立）；憑證選填，之後可用 petty_add_vouchers 補
 -- p = { id, fill_date, reason, amount, note, vouchers: [{ date, amount, photo_path }] }
--- 照片要先上傳到 petty/<自己的 user id>/<申請 id>/n.jpg
 -- ─────────────────────────────────────────────
 create or replace function public.petty_submit(p jsonb)
 returns public.petty_requests language plpgsql security definer set search_path = public as $$
@@ -208,7 +239,6 @@ declare
   uid    uuid := auth.uid();
   rid    uuid := (p->>'id')::uuid;
   amt    numeric := (p->>'amount')::numeric;
-  v      jsonb;
   r      public.petty_requests;
 begin
   if public.petty_role() is null then
@@ -220,27 +250,37 @@ begin
   if amt > 10000 then
     raise exception '申請金額不得高於 $10,000，請改填請款單';
   end if;
-  if jsonb_typeof(p->'vouchers') is distinct from 'array' or jsonb_array_length(p->'vouchers') = 0 then
-    raise exception '至少要附一張憑證';
-  end if;
 
   insert into public.petty_requests (id, fill_date, reason, amount, note)
   values (rid, (p->>'fill_date')::date, trim(p->>'reason'), amt::integer, nullif(trim(p->>'note'), ''))
   returning * into r;
 
-  for v in select * from jsonb_array_elements(p->'vouchers') loop
-    if v->>'date' is null or v->>'amount' is null then
-      raise exception '每張憑證都要有日期和金額';
-    end if;
-    if coalesce(v->>'photo_path', '') not like uid::text || '/' || rid::text || '/%'
-       or not exists (select 1 from storage.objects o where o.bucket_id = 'petty' and o.name = v->>'photo_path') then
-      raise exception '憑證照片不存在或路徑不正確';
-    end if;
-    insert into public.petty_vouchers (request_id, voucher_date, amount, photo_path)
-    values (rid, (v->>'date')::date, (v->>'amount')::numeric, v->>'photo_path');
-  end loop;
-
+  perform public.petty_insert_vouchers(rid, p->'vouchers');
   return r;
+end $$;
+
+-- RPC：申請人替自己的申請補憑證；已入帳、已退回或已封存的不能再補。回傳新增張數
+create or replace function public.petty_add_vouchers(p_request_id uuid, p_vouchers jsonb)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  r  public.petty_requests;
+  n  integer;
+begin
+  if public.petty_role() is null then
+    raise exception '你不是零用金系統的成員';
+  end if;
+  select * into r from public.petty_requests where id = p_request_id for update;
+  if r.id is null or r.applicant_id <> auth.uid() then
+    raise exception '只能替自己的申請補憑證';
+  end if;
+  if r.status not in ('pending', 'approved', 'printed') or r.archived_at is not null then
+    raise exception '這筆申請已經%，不能再補憑證', case r.status when 'booked' then '入帳' else '退回' end;
+  end if;
+  n := public.petty_insert_vouchers(p_request_id, p_vouchers);
+  if n = 0 then
+    raise exception '請至少加一張憑證';
+  end if;
+  return n;
 end $$;
 
 -- RPC：哪幾組「日期＋憑證金額」已出現在未退回的申請裡（不回傳申請內容）
@@ -318,6 +358,9 @@ end $$;
 
 revoke execute on function public.petty_archive_month(text) from public, anon;
 grant execute on function public.petty_archive_month(text) to authenticated;
+revoke execute on function public.petty_insert_vouchers(uuid, jsonb) from public, anon, authenticated;
+revoke execute on function public.petty_add_vouchers(uuid, jsonb) from public, anon;
+grant execute on function public.petty_add_vouchers(uuid, jsonb) to authenticated;
 revoke execute on function public.petty_submit(jsonb) from public, anon;
 revoke execute on function public.petty_duplicate_vouchers(jsonb) from public, anon;
 revoke execute on function public.petty_add_member(text, text, text, text) from public, anon;
@@ -355,7 +398,7 @@ create policy "petty requests review" on public.petty_requests
   for update using (public.petty_role() in ('approver', 'admin'))
   with check (public.petty_role() in ('approver', 'admin'));
 
--- 憑證：看得到申請就看得到憑證；新增只能透過 petty_submit
+-- 憑證：看得到申請就看得到憑證；新增只能透過 petty_submit、petty_add_vouchers
 drop policy if exists "petty vouchers read" on public.petty_vouchers;
 create policy "petty vouchers read" on public.petty_vouchers
   for select using (exists (select 1 from public.petty_requests r where r.id = request_id));

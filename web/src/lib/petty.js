@@ -37,6 +37,12 @@ export function canTransition(from, to, role) {
   return (TRANSITIONS[role] ?? []).some(([f, t]) => f === from && t === to)
 }
 
+// 憑證選填：申請人可在入帳前補上（已退回、已封存的不行）
+export const VOUCHER_OPEN_STATUSES = ['pending', 'approved', 'printed']
+export function canAddVouchers(r) {
+  return VOUCHER_OPEN_STATUSES.includes(r.status) && !r.archived_at
+}
+
 // 只有主管能核准（包含主管自己的申請）
 export function canApprove(request, role) {
   return request.status === 'pending' && role === 'approver'

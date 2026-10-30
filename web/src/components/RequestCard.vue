@@ -58,7 +58,8 @@ watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
         <template v-if="request.booked_at"><dt>入帳</dt><dd>{{ fmtTaipei(request.booked_at) }}</dd></template>
       </dl>
 
-      <h4>憑證 {{ vouchers.length }} 張，合計 ${{ fmtMoney(voucherTotal) }}</h4>
+      <h4 v-if="vouchers.length">憑證 {{ vouchers.length }} 張，合計 ${{ fmtMoney(voucherTotal) }}</h4>
+      <h4 v-else class="muted">尚未附憑證</h4>
       <p v-if="request.archived_at" class="muted small">照片已封存（{{ fmtTaipei(request.archived_at) }}）</p>
       <p v-if="photoError" class="msg error">{{ photoError }}</p>
       <ul class="vouchers">
@@ -74,8 +75,10 @@ watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
 
     <div class="req-foot">
       <button class="btn link small" @click="expanded = !expanded">{{ expanded ? '收合' : '詳細與照片' }}</button>
+      <span v-if="!vouchers.length" class="no-voucher">未附憑證</span>
       <slot name="actions" />
     </div>
+    <slot name="extra" />
 
     <div v-if="lightbox" class="lightbox" @click="lightbox = null">
       <img :src="lightbox" alt="憑證照片" />
