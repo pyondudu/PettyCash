@@ -170,6 +170,18 @@ export function fmtDate(s) {
 }
 
 // 今天（台北時間）YYYY-MM-DD
+// 「我的申請」只列最近 MINE_MONTHS 個月（含本月）；回傳這幾個月 ['2026-11', '2026-10', '2026-09'] 與起始日
+export const MINE_MONTHS = 3
+export function recentMonths(n = MINE_MONTHS, now = new Date()) {
+  const [y, m] = todayTaipei(now).split('-').map(Number)
+  const months = []
+  for (let i = 0; i < n; i++) {
+    const d = new Date(Date.UTC(y, m - 1 - i, 1))
+    months.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+  }
+  return { months, from: `${months[n - 1]}-01` }
+}
+
 export function todayTaipei(now = new Date()) {
   return taipeiParts(now).slice(0, 3).join('-')
 }

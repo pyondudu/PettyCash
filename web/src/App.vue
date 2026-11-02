@@ -62,10 +62,10 @@ async function logout() {
         </div>
       </header>
       <nav class="tabs no-print">
+        <router-link to="/mine">我的申請</router-link>
+        <router-link to="/apply">申請</router-link>
         <router-link v-if="store.isApprover" to="/approve">待核准<span v-if="store.counts.pending" class="badge">{{ store.counts.pending }}</span></router-link>
         <router-link v-if="store.isAdmin" to="/admin">管理<span v-if="store.counts.approved" class="badge">{{ store.counts.approved }}</span></router-link>
-        <router-link to="/apply">申請</router-link>
-        <router-link to="/mine">我的申請</router-link>
         <router-link v-if="store.isAdmin" to="/members">成員</router-link>
         <router-link v-if="store.isAdmin" to="/settings">設定</router-link>
       </nav>

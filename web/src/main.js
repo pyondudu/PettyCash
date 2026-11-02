@@ -14,8 +14,8 @@ import './style.css'
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    // 首頁依角色：主管 → 待核准、管理者 → 管理、申請人 → 申請
-    { path: '/', redirect: () => (store.isApprover ? '/approve' : store.isAdmin ? '/admin' : '/apply') },
+    // 登入後一律先到「我的申請」
+    { path: '/', redirect: '/mine' },
     { path: '/apply', component: Apply },
     { path: '/mine', component: Mine },
     { path: '/approve', component: Approve, meta: { role: 'approver' } },

@@ -194,3 +194,9 @@ test('登記前缺少的資料', () => {
   assert.deepEqual(bookingMissing(r, { category: '運費', payee_name: '江林泉', receipts: { 1: 'A1', 2: NO_RECEIPT_NO } }), [])
   assert.deepEqual(bookingMissing({ category: '運費', payee_name: '', petty_vouchers: [] }), ['領收人'])
 })
+
+test('我的申請：最近 3 個月', async () => {
+  const { recentMonths } = await import('../src/lib/petty.js')
+  assert.deepEqual(recentMonths(3, new Date('2026-11-02T03:00:00Z')), { months: ['2026-11', '2026-10', '2026-09'], from: '2026-09-01' })
+  assert.deepEqual(recentMonths(3, new Date('2026-01-31T20:00:00Z')).months, ['2026-02', '2026-01', '2025-12'])
+})
