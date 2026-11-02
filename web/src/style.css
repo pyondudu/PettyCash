@@ -183,6 +183,7 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
 
 /* ── Status pill ── */
 .pill { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.draft { background: var(--surface-2); color: var(--muted); }
 .pill.pending { background: var(--warn-bg); color: var(--warn); }
 .pill.approved { background: var(--info-bg); color: var(--info); }
 .pill.printed { background: color-mix(in srgb, var(--accent) 15%, var(--surface)); color: var(--accent); }
@@ -191,6 +192,7 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
 
 /* ── Request card ── */
 .req { padding: 12px 14px; border-left-width: 4px; }
+.req.st-draft { border-left-color: var(--border); border-left-style: dashed; }
 .req.st-pending { border-left-color: var(--warn); }
 .req.st-approved { border-left-color: var(--info); }
 .req.st-rejected, .req.st-returned { border-left-color: var(--danger); }

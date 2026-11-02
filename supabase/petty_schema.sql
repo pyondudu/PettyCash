@@ -4,6 +4,7 @@
 -- 不修改 PartTrail 的任何物件。執行前後請各跑一次 check_parttrail.sql 比對。
 --
 -- 狀態（status）：
+--   draft 草稿（只有本人看得到，可修改、刪除）→ (本人送出) pending
 --   pending 待主管核准 → (主管) approved 已核准 / rejected 主管退回
 --   approved → (管理者列印) printed 已核發 → (管理者) booked 已登記
 --   pending / approved / printed → (管理者) returned 已取消（流程中途取消）
@@ -40,11 +41,10 @@ create table if not exists public.petty_requests (
   applicant_name  text not null,
   applicant_unit  text not null default '',
   fill_date       date not null,
-  reason          text not null check (length(trim(reason)) > 0),
-  amount          integer not null check (amount > 0 and amount <= 10000),
+  reason          text not null default '',
+  amount          integer,
   note            text,
-  status          text not null default 'pending'
-                  check (status in ('pending', 'approved', 'rejected', 'printed', 'booked', 'returned')),
+  status          text not null default 'pending',
   submitted_at    timestamptz not null default now(),
   approver_id     uuid references auth.users(id),
   approver_name   text,
@@ -57,6 +57,18 @@ create table if not exists public.petty_requests (
 );
 -- 後加欄位（舊資料庫重跑本檔時補上）
 alter table public.petty_requests add column if not exists archived_at timestamptz;  -- 照片已封存（雲端照片已刪）
+-- 狀態與必填檢查（草稿 draft 可以還沒填事由、金額；送出後才給申請編號）
+alter table public.petty_requests drop constraint if exists petty_requests_status_check;
+alter table public.petty_requests add constraint petty_requests_status_check
+  check (status in ('draft', 'pending', 'approved', 'rejected', 'printed', 'booked', 'returned'));
+alter table public.petty_requests drop constraint if exists petty_requests_reason_check;
+alter table public.petty_requests add constraint petty_requests_reason_check
+  check (status = 'draft' or length(trim(reason)) > 0);
+alter table public.petty_requests alter column amount drop not null;
+alter table public.petty_requests alter column reason set default '';
+alter table public.petty_requests drop constraint if exists petty_requests_amount_check;
+alter table public.petty_requests add constraint petty_requests_amount_check
+  check ((status = 'draft' and amount is null) or (amount > 0 and amount <= 10000));
 -- 登記資料（管理者在「已核發」填，petty_save_booking 寫入）與試算表同步
 alter table public.petty_requests add column if not exists category        text;        -- 類別（同試算表下拉選單）
 alter table public.petty_requests add column if not exists payee_name      text;        -- 領收人（預設申請人）
@@ -103,14 +115,29 @@ create table if not exists public.petty_secrets (
 );
 
 -- ─────────────────────────────────────────────
+-- 申請編號：P + 送出年月（台北）+ 當月流水號 4 碼（內部用）
+-- 同月份同時送出也不會重號（on conflict 會鎖住該月份那一列）
+-- ─────────────────────────────────────────────
+create or replace function public.petty_next_request_no()
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  v_ym  text := to_char(now() at time zone 'Asia/Taipei', 'YYYYMM');
+  v_n   integer;
+begin
+  insert into public.petty_counters (month, last) values (v_ym, 1)
+  on conflict (month) do update set last = petty_counters.last + 1
+  returning last into v_n;
+  return 'P' || v_ym || lpad(v_n::text, 4, '0');
+end $$;
+
+-- ─────────────────────────────────────────────
 -- Trigger：新增申請時，申請人、姓名、單位、送出時間、狀態一律由資料庫決定
+-- 草稿（status = 'draft'）先不給申請編號，送出時（petty_submit_draft）才給
 -- ─────────────────────────────────────────────
 create or replace function public.petty_requests_before_insert()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
   m     public.petty_members;
-  v_ym  text := to_char(now() at time zone 'Asia/Taipei', 'YYYYMM');
-  v_n   integer;
 begin
   select * into m from public.petty_members where user_id = auth.uid() and active;
   if m.user_id is null then
@@ -120,12 +147,12 @@ begin
   new.applicant_name := m.name;
   new.applicant_unit := m.unit;
   new.submitted_at   := now();
-  new.status         := 'pending';
-  -- 同月份同時送出也不會重號（on conflict 會鎖住該月份那一列）
-  insert into public.petty_counters (month, last) values (v_ym, 1)
-  on conflict (month) do update set last = petty_counters.last + 1
-  returning last into v_n;
-  new.request_no     := 'P' || v_ym || lpad(v_n::text, 4, '0');
+  if new.status = 'draft' then
+    new.request_no := null;
+  else
+    new.status     := 'pending';
+    new.request_no := public.petty_next_request_no();
+  end if;
   new.approver_id    := null;
   new.approver_name  := null;
   new.approved_at    := null;
@@ -289,6 +316,96 @@ begin
   return r;
 end $$;
 
+-- ─────────────────────────────────────────────
+-- 草稿：先儲存、確定後再送出；送出前本人可以修改或刪除
+-- p = { id, fill_date, reason, amount, note, vouchers: [{ date, amount, photo_path }], remove_voucher_ids: [id] }
+-- ─────────────────────────────────────────────
+create or replace function public.petty_save_draft(p jsonb)
+returns public.petty_requests language plpgsql security definer set search_path = public as $$
+declare
+  uid  uuid := auth.uid();
+  rid  uuid := (p->>'id')::uuid;
+  amt  numeric := nullif(p->>'amount', '')::numeric;
+  r    public.petty_requests;
+begin
+  if public.petty_role() is null then
+    raise exception '你不是零用金系統的成員';
+  end if;
+  if amt is not null and (amt <= 0 or amt <> trunc(amt)) then
+    raise exception '申請金額要是大於 0 的整數';
+  end if;
+  if amt > 10000 then
+    raise exception '申請金額不得高於 $10,000，請改填請款單';
+  end if;
+
+  select * into r from public.petty_requests where id = rid for update;
+  if r.id is null then
+    insert into public.petty_requests (id, fill_date, reason, amount, note, status)
+    values (rid, coalesce((p->>'fill_date')::date, (now() at time zone 'Asia/Taipei')::date),
+            coalesce(trim(p->>'reason'), ''), amt::integer, nullif(trim(p->>'note'), ''), 'draft');
+  else
+    if r.applicant_id <> uid or r.status <> 'draft' then
+      raise exception '只能修改自己還沒送出的申請';
+    end if;
+    perform set_config('petty.internal', 'on', true);
+    update public.petty_requests
+       set fill_date = coalesce((p->>'fill_date')::date, fill_date),
+           reason    = coalesce(trim(p->>'reason'), ''),
+           amount    = amt::integer,
+           note      = nullif(trim(p->>'note'), '')
+     where id = rid;
+    perform set_config('petty.internal', 'off', true);
+    delete from public.petty_vouchers
+     where request_id = rid
+       and id in (select value::bigint from jsonb_array_elements_text(coalesce(p->'remove_voucher_ids', '[]'::jsonb)));
+  end if;
+
+  perform public.petty_insert_vouchers(rid, p->'vouchers');
+  select * into r from public.petty_requests where id = rid;
+  return r;
+end $$;
+
+-- 送出草稿：檢查必填、給申請編號，交給主管核准
+create or replace function public.petty_submit_draft(p_id uuid)
+returns public.petty_requests language plpgsql security definer set search_path = public as $$
+declare
+  r  public.petty_requests;
+begin
+  select * into r from public.petty_requests where id = p_id for update;
+  if r.id is null or r.applicant_id <> auth.uid() or r.status <> 'draft' or public.petty_role() is null then
+    raise exception '只能送出自己還沒送出的申請';
+  end if;
+  if length(trim(r.reason)) = 0 then
+    raise exception '請填寫申請事由';
+  end if;
+  if r.amount is null then
+    raise exception '請填寫申請金額';
+  end if;
+  perform set_config('petty.internal', 'on', true);
+  update public.petty_requests
+     set status = 'pending', request_no = public.petty_next_request_no(), submitted_at = now()
+   where id = p_id
+  returning * into r;
+  perform set_config('petty.internal', 'off', true);
+  return r;
+end $$;
+
+-- 刪除草稿（只限本人、還沒送出）；回傳照片路徑，由網頁接著刪 Storage 的照片
+create or replace function public.petty_delete_draft(p_id uuid)
+returns text[] language plpgsql security definer set search_path = public as $$
+declare
+  r      public.petty_requests;
+  paths  text[];
+begin
+  select * into r from public.petty_requests where id = p_id for update;
+  if r.id is null or r.applicant_id <> auth.uid() or r.status <> 'draft' then
+    raise exception '只能刪除自己還沒送出的申請';
+  end if;
+  select coalesce(array_agg(photo_path), '{}') into paths from public.petty_vouchers where request_id = p_id;
+  delete from public.petty_requests where id = p_id;   -- 憑證跟著刪（on delete cascade）
+  return paths;
+end $$;
+
 -- RPC：補憑證（申請人補自己的，管理者可替任何人補）；已登記、主管退回、已取消或已封存的不能再補。回傳新增張數
 create or replace function public.petty_add_vouchers(p_request_id uuid, p_vouchers jsonb)
 returns integer language plpgsql security definer set search_path = public as $$
@@ -329,7 +446,7 @@ begin
     join public.petty_requests r on r.id = v.request_id
     join jsonb_to_recordset(pairs) as q(date date, amount numeric)
       on q.date = v.voucher_date and q.amount = v.amount
-    where r.status not in ('rejected', 'returned');
+    where r.status not in ('rejected', 'returned', 'draft');
 end $$;
 
 -- RPC：管理者用帳號加入（或更新）成員；沒有 @ 時補 @parttrail.local
@@ -484,6 +601,13 @@ revoke execute on function public.petty_add_member(text, text, text, text) from 
 grant execute on function public.petty_submit(jsonb) to authenticated;
 grant execute on function public.petty_duplicate_vouchers(jsonb) to authenticated;
 grant execute on function public.petty_add_member(text, text, text, text) to authenticated;
+revoke execute on function public.petty_next_request_no() from public, anon, authenticated;
+revoke execute on function public.petty_save_draft(jsonb) from public, anon;
+revoke execute on function public.petty_submit_draft(uuid) from public, anon;
+revoke execute on function public.petty_delete_draft(uuid) from public, anon;
+grant execute on function public.petty_save_draft(jsonb) to authenticated;
+grant execute on function public.petty_submit_draft(uuid) to authenticated;
+grant execute on function public.petty_delete_draft(uuid) to authenticated;
 revoke execute on function public.petty_save_booking(uuid, text, text, jsonb) from public, anon;
 grant execute on function public.petty_save_booking(uuid, text, text, jsonb) to authenticated;
 revoke execute on function public.petty_check_sheet_secret(text) from public, anon, authenticated;
@@ -515,7 +639,7 @@ drop policy if exists "petty requests read" on public.petty_requests;
 create policy "petty requests read" on public.petty_requests
   for select using (
     (applicant_id = auth.uid() and public.petty_role() is not null)
-    or public.petty_role() in ('approver', 'admin')
+    or (public.petty_role() in ('approver', 'admin') and status <> 'draft')  -- 草稿只有本人看得到
   );
 -- 修改：只有主管、管理者；能改什麼由 petty_requests_before_update 決定
 drop policy if exists "petty requests review" on public.petty_requests;

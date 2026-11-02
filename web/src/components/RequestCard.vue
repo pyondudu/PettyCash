@@ -40,18 +40,18 @@ watch(vouchers, () => { if (expanded.value) loadPhotos() })
         <strong>{{ fmtDate(request.fill_date) }}</strong>
         <span v-if="showApplicant">{{ request.applicant_name }}<span v-if="request.applicant_unit" class="muted">（{{ request.applicant_unit }}）</span></span>
       </div>
-      <div class="req-amount">${{ fmtMoney(request.amount) }}</div>
+      <div class="req-amount">{{ request.amount ? `$${fmtMoney(request.amount)}` : '金額未填' }}</div>
     </header>
-    <p class="req-reason" @click="expanded = !expanded">{{ request.reason }}</p>
+    <p class="req-reason" @click="expanded = !expanded">{{ request.reason || '（事由未填）' }}</p>
     <p v-if="request.reject_reason && ['rejected', 'returned'].includes(request.status)" class="reject">
       {{ request.status === 'returned' ? '取消原因' : '退回原因' }}：{{ request.reject_reason }}
     </p>
 
     <div v-if="expanded" class="req-body">
       <dl class="kv">
-        <dt>編號</dt><dd>{{ request.request_no }}</dd>
+        <dt>編號</dt><dd>{{ request.request_no ?? '送出後產生' }}</dd>
         <template v-if="request.note"><dt>備註</dt><dd class="pre">{{ request.note }}</dd></template>
-        <dt>送出</dt><dd>{{ submittedText(request.applicant_name, request.submitted_at) }}</dd>
+        <template v-if="request.status !== 'draft'"><dt>送出</dt><dd>{{ submittedText(request.applicant_name, request.submitted_at) }}</dd></template>
         <template v-if="request.approved_at"><dt>核准</dt><dd>{{ approvedText(request.approver_name, request.approved_at) }}</dd></template>
         <template v-if="request.status === 'rejected'"><dt>退回</dt><dd>{{ request.approver_name }} 於 {{ fmtTaipei(request.rejected_at) }}</dd></template>
         <template v-if="request.status === 'returned'"><dt>取消</dt><dd>{{ fmtTaipei(request.rejected_at) }}</dd></template>

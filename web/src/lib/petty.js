@@ -2,6 +2,7 @@
 // 狀態與轉換規則要和 supabase/petty_schema.sql 的 trigger 一致
 
 export const STATUS = {
+  draft: { label: '草稿' },        // 還沒送出，只有本人看得到
   pending: { label: '待主管核准' },
   approved: { label: '已核准' },
   rejected: { label: '主管退回' },

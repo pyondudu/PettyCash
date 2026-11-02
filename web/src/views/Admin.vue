@@ -69,7 +69,7 @@ async function load() {
   ])
   loading.value = false
   if (r.error) msg.value = '讀取失敗：' + errText(r.error)
-  rows.value = r.data ?? []
+  rows.value = (r.data ?? []).filter((x) => x.status !== 'draft')   // 自己的草稿不列入管理
   const settings = Object.fromEntries((s.data ?? []).map((x) => [x.key, x.value]))
   keeper.value = settings.keeper_name ?? ''
   categories.value = parseCategories(settings.categories)
