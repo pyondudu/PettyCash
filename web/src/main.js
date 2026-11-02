@@ -4,6 +4,7 @@ import App from './App.vue'
 import Apply from './views/Apply.vue'
 import Mine from './views/Mine.vue'
 import Approve from './views/Approve.vue'
+import Reviewed from './views/Reviewed.vue'
 import Admin from './views/Admin.vue'
 import Members from './views/Members.vue'
 import Settings from './views/Settings.vue'
@@ -19,6 +20,7 @@ const router = createRouter({
     { path: '/apply', component: Apply },
     { path: '/mine', component: Mine },
     { path: '/approve', component: Approve, meta: { role: 'approver' } },
+    { path: '/reviewed', component: Reviewed, meta: { role: 'approver' } },
     { path: '/admin', component: Admin, meta: { role: 'admin' } },
     { path: '/members', component: Members, meta: { role: 'admin' } },
     { path: '/settings', component: Settings, meta: { role: 'admin' } },
