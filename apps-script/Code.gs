@@ -2,7 +2,7 @@
  * 零用金 → Google 試算表 自動登記
  *
  * 網頁按「標已登記」後，這支程式每 1 分鐘向資料庫要「已登記、還沒寫入」的申請，
- * 寫到與核發日期同年份的分頁（例如 2026）最後一筆資料的下一列，寫完再回報資料庫，不會重複寫。
+ * 寫到與核發日期同年份的分頁（「2026年」或「2026」）最後一筆資料的下一列，寫完再回報資料庫，不會重複寫。
  *
  * 安裝（每份試算表做一次，先在副本測試）：
  *   1. 試算表 → 擴充功能 → Apps Script，把這整份貼上（取代原本內容），按儲存。
@@ -67,9 +67,9 @@ function sync() {
     var written = 0;
     var errors = [];
     rows.forEach(function (r) {
-      var sheet = ss.getSheetByName(r.year);
+      var sheet = ss.getSheetByName(r.year + '年') || ss.getSheetByName(r.year);
       if (!sheet) {
-        errors.push(r.request_no + '：找不到分頁「' + r.year + '」，請先建立該年度分頁');
+        errors.push(r.request_no + '：找不到分頁「' + r.year + '年」，請先建立該年度分頁');
         return;
       }
       appendRow_(sheet, r);
