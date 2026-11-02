@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { fullImageCorners } from '../lib/scanner'
 
 // 四角調整：在照片上拖曳四個圓點，讓綠框貼齊憑證邊緣（移植自 Photo to PDF 的 cornerEditor.js）
@@ -10,42 +10,74 @@ const props = defineProps({
 })
 const emit = defineEmits(['done'])              // 確定回傳四角，取消回傳 null
 
+const W = props.source.width
+const H = props.source.height
+const clampPoint = (p) => ({ x: Math.min(Math.max(p.x, 0), W), y: Math.min(Math.max(p.y, 0), H) })
+
 const stage = ref(null)
+const frame = ref(null)
 const view = ref(null)
-const points = reactive(props.corners.map((p) => ({ ...p })))
-const size = reactive({ w: 0, h: 0, scale: 1 })
+// 座標一律用原圖像素，顯示時再乘上 scale；偵測結果超出照片的點拉回照片內
+const points = reactive(props.corners.map(clampPoint))
+const scale = ref(0)
+const size = computed(() => ({ w: Math.round(W * scale.value), h: Math.round(H * scale.value) }))
 const active = ref(-1)
 
-onMounted(async () => {
-  await nextTick()
+// 依舞台實際可用空間（扣掉 padding）等比縮放；手機拍完照回來時畫面大小還會變，所以持續監看
+function layout() {
   const s = stage.value
-  size.scale = Math.min(s.clientWidth / props.source.width, s.clientHeight / props.source.height)
-  size.w = Math.round(props.source.width * size.scale)
-  size.h = Math.round(props.source.height * size.scale)
+  if (!s) return
+  const cs = getComputedStyle(s)
+  const availW = s.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+  const availH = s.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+  if (availW <= 0 || availH <= 0) return
+  const next = Math.min(availW / W, availH / H)
+  if (Math.abs(next - scale.value) < 1e-4) return
+  scale.value = next
   const dpr = window.devicePixelRatio || 1
   const c = view.value
-  c.width = Math.round(size.w * dpr)
-  c.height = Math.round(size.h * dpr)
+  c.width = Math.round(W * next * dpr)
+  c.height = Math.round(H * next * dpr)
   c.getContext('2d').drawImage(props.source, 0, 0, c.width, c.height)
+}
+
+let observer = null
+onMounted(() => {
+  layout()
+  observer = new ResizeObserver(layout)
+  observer.observe(stage.value)
+})
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  stopDrag()
 })
 
-const polygon = () => points.map((p) => `${p.x * size.scale},${p.y * size.scale}`).join(' ')
+const polygon = computed(() => points.map((p) => `${p.x * scale.value},${p.y * scale.value}`).join(' '))
 
+// 拖曳：按下圓點後在整個視窗追蹤手指，手指滑出圓點也能繼續拖
+function onMove(e) {
+  if (active.value < 0) return
+  e.preventDefault()
+  const rect = frame.value.getBoundingClientRect()
+  points[active.value] = clampPoint({ x: (e.clientX - rect.left) / scale.value, y: (e.clientY - rect.top) / scale.value })
+}
+function stopDrag() {
+  active.value = -1
+  window.removeEventListener('pointermove', onMove)
+  window.removeEventListener('pointerup', stopDrag)
+  window.removeEventListener('pointercancel', stopDrag)
+}
 function down(i, e) {
   e.preventDefault()
-  e.currentTarget.setPointerCapture(e.pointerId)
+  stopDrag()
   active.value = i
+  window.addEventListener('pointermove', onMove, { passive: false })
+  window.addEventListener('pointerup', stopDrag)
+  window.addEventListener('pointercancel', stopDrag)
 }
-function move(i, e) {
-  if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-  const rect = e.currentTarget.parentElement.getBoundingClientRect()
-  const x = Math.min(Math.max(e.clientX - rect.left, 0), size.w)
-  const y = Math.min(Math.max(e.clientY - rect.top, 0), size.h)
-  points[i] = { x: x / size.scale, y: y / size.scale }
-}
-function up() { active.value = -1 }
 
 function finish(result) {
+  stopDrag()
   if (view.value) { view.value.width = 0; view.value.height = 0 }
   emit('done', result)
 }
@@ -59,13 +91,13 @@ function useFull() {
     <section class="corner-editor no-print">
       <p class="corner-hint">拖曳四個圓點，讓綠框貼齊憑證邊緣<span v-if="label">（{{ label }}）</span></p>
       <div ref="stage" class="corner-stage">
-        <div class="corner-frame" :style="{ width: size.w + 'px', height: size.h + 'px' }">
+        <div ref="frame" class="corner-frame" :style="{ width: size.w + 'px', height: size.h + 'px' }">
           <canvas ref="view" />
-          <svg class="corner-svg"><polygon :points="polygon()" /></svg>
+          <svg class="corner-svg"><polygon :points="polygon" /></svg>
           <div
             v-for="(p, i) in points" :key="i" class="corner-handle" :class="{ active: active === i }"
-            :style="{ transform: `translate(${p.x * size.scale}px, ${p.y * size.scale}px)` }"
-            @pointerdown="down(i, $event)" @pointermove="move(i, $event)" @pointerup="up" @pointercancel="up"
+            :style="{ transform: `translate(${p.x * scale}px, ${p.y * scale}px)` }"
+            @pointerdown="down(i, $event)"
           />
         </div>
       </div>
