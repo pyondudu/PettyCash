@@ -6,8 +6,8 @@
 -- 狀態（status）：
 --   pending 待主管核准 → (主管) approved 已核准 / rejected 主管退回
 --   approved → (管理者列印) printed 已列印 → (管理者) booked 已入帳
---   pending / approved / printed → (管理者) returned 退回
--- 封存：依申請編號的年月整月封存。該月每筆都「已入帳滿 4 個月」或「已退回」後，
+--   pending / approved / printed → (管理者) returned 已取消（流程中途取消）
+-- 封存：依申請編號的年月整月封存。該月每筆都「已入帳滿 4 個月」或「主管退回／已取消」後，
 --   管理者下載該月照片 zip、呼叫 petty_archive_month，再刪掉雲端照片（申請紀錄保留）。
 -- 規則要和 web/src/lib/petty.js 一致。
 
@@ -170,7 +170,7 @@ begin
   elsif v_role = 'admin' and old.status = 'printed' and new.status = 'booked' then
     r.booked_at := now();
 
-  -- 封存（網頁透過 petty_archive_month 整月一起做）：已入帳滿 4 個月，或已退回
+  -- 封存（網頁透過 petty_archive_month 整月一起做）：已入帳滿 4 個月，或主管退回／已取消
   elsif v_role = 'admin' and old.status = new.status and old.status in ('booked', 'rejected', 'returned')
         and old.archived_at is null and new.archived_at is not null then
     if old.status = 'booked' and old.booked_at > now() - interval '4 months' then
@@ -181,7 +181,7 @@ begin
   elsif v_role = 'admin' and old.status in ('pending', 'approved', 'printed') and new.status = 'returned' then
     r.reject_reason := nullif(trim(new.reject_reason), '');
     if r.reject_reason is null then
-      raise exception '請填寫退回原因';
+      raise exception '請填寫取消原因';
     end if;
     r.rejected_at := now();
 
@@ -259,7 +259,7 @@ begin
   return r;
 end $$;
 
--- RPC：申請人替自己的申請補憑證；已入帳、已退回或已封存的不能再補。回傳新增張數
+-- RPC：申請人替自己的申請補憑證；已入帳、主管退回、已取消或已封存的不能再補。回傳新增張數
 create or replace function public.petty_add_vouchers(p_request_id uuid, p_vouchers jsonb)
 returns integer language plpgsql security definer set search_path = public as $$
 declare
@@ -274,7 +274,7 @@ begin
     raise exception '只能替自己的申請補憑證';
   end if;
   if r.status not in ('pending', 'approved', 'printed') or r.archived_at is not null then
-    raise exception '這筆申請已經%，不能再補憑證', case r.status when 'booked' then '入帳' else '退回' end;
+    raise exception '這筆申請已經%，不能再補憑證', case r.status when 'booked' then '入帳' when 'returned' then '取消' else '被主管退回' end;
   end if;
   n := public.petty_insert_vouchers(p_request_id, p_vouchers);
   if n = 0 then
@@ -283,7 +283,7 @@ begin
   return n;
 end $$;
 
--- RPC：哪幾組「日期＋憑證金額」已出現在未退回的申請裡（不回傳申請內容）
+-- RPC：哪幾組「日期＋憑證金額」已出現在未退回、未取消的申請裡（不回傳申請內容）
 -- pairs = [{ date: 'YYYY-MM-DD', amount: 123 }]
 create or replace function public.petty_duplicate_vouchers(pairs jsonb)
 returns table (dup_date date, dup_amount numeric)
@@ -326,7 +326,7 @@ begin
 end $$;
 
 -- RPC：封存一整個月（依申請編號的年月，p_month = 'YYYYMM'），回傳封存筆數。
--- 該月每一筆都要「已入帳滿 4 個月」或「已退回」才可以；網頁先下載 zip，再呼叫這個，最後刪雲端照片。
+-- 該月每一筆都要「已入帳滿 4 個月」或「主管退回／已取消」才可以；網頁先下載 zip，再呼叫這個，最後刪雲端照片。
 create or replace function public.petty_archive_month(p_month text)
 returns integer language plpgsql security definer set search_path = public as $$
 declare
@@ -345,7 +345,7 @@ begin
     and not (status in ('rejected', 'returned')
              or (status = 'booked' and booked_at <= now() - interval '4 months'));
   if v_open > 0 then
-    raise exception '這個月還有 % 筆申請沒有結束（要已入帳滿 4 個月或已退回），不能封存', v_open;
+    raise exception '這個月還有 % 筆申請沒有結束（要已入帳滿 4 個月，或主管退回／已取消），不能封存', v_open;
   end if;
   update public.petty_requests set archived_at = now()
   where request_no like 'P' || p_month || '%' and archived_at is null;
