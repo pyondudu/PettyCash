@@ -5,8 +5,8 @@ export const STATUS = {
   pending: { label: '待主管核准' },
   approved: { label: '已核准' },
   rejected: { label: '主管退回' },
-  printed: { label: '已列印' },
-  booked: { label: '已入帳' },
+  printed: { label: '已核發' },   // 已列印、零用金已核發
+  booked: { label: '已登記' },
   returned: { label: '已取消' },   // 管理者在流程中途取消
 }
 export const STATUS_KEYS = Object.keys(STATUS)
@@ -37,7 +37,7 @@ export function canTransition(from, to, role) {
   return (TRANSITIONS[role] ?? []).some(([f, t]) => f === from && t === to)
 }
 
-// 憑證選填：申請人可在入帳前補上（主管退回、已取消、已封存的不行）
+// 憑證選填：申請人可在登記前補上（主管退回、已取消、已封存的不行）
 export const VOUCHER_OPEN_STATUSES = ['pending', 'approved', 'printed']
 export function canAddVouchers(r) {
   return VOUCHER_OPEN_STATUSES.includes(r.status) && !r.archived_at
@@ -55,7 +55,7 @@ export function canApprove(request, role) {
 export const PHOTO_MAX_EDGE = 1200
 export const PHOTO_QUALITY = 0.75
 
-// 封存以月為單位（依申請編號的年月）：該月每筆都「已入帳滿 4 個月」或「主管退回／已取消」才可以
+// 封存以月為單位（依申請編號的年月）：該月每筆都「已登記滿 4 個月」或「主管退回／已取消」才可以
 // 下載該月照片 zip → RPC petty_archive_month → 刪雲端照片
 export const ARCHIVE_MONTHS = 4
 

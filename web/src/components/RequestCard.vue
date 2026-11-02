@@ -55,7 +55,7 @@ watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
         <template v-if="request.status === 'returned'"><dt>取消</dt><dd>{{ fmtTaipei(request.rejected_at) }}</dd></template>
         <template v-if="request.disbursed_date"><dt>核發日期</dt><dd>{{ fmtDate(request.disbursed_date) }}</dd></template>
         <template v-if="request.printed_at"><dt>列印</dt><dd>{{ fmtTaipei(request.printed_at) }}</dd></template>
-        <template v-if="request.booked_at"><dt>入帳</dt><dd>{{ fmtTaipei(request.booked_at) }}</dd></template>
+        <template v-if="request.booked_at"><dt>登記</dt><dd>{{ fmtTaipei(request.booked_at) }}</dd></template>
       </dl>
 
       <h4 v-if="vouchers.length">憑證 {{ vouchers.length }} 張，合計 ${{ fmtMoney(voucherTotal) }}</h4>

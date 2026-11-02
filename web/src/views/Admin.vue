@@ -114,7 +114,7 @@ async function printNow() {
   if (!firstPrintTip()) return
   window.print()
   const n = preview.value.length
-  if (!confirm(`已經印好了嗎？\n按「確定」把這 ${n} 筆標為「已列印」，核發日期 ${disbursedDate.value.replaceAll('-', '/')}。`)) return
+  if (!confirm(`已經印好了嗎？\n按「確定」把這 ${n} 筆標為「已核發」，核發日期 ${disbursedDate.value.replaceAll('-', '/')}。`)) return
   busy.value = true
   const { error } = await supabase.from('petty_requests')
     .update({ status: 'printed', disbursed_date: disbursedDate.value })
@@ -126,10 +126,10 @@ async function printNow() {
   await load()
 }
 
-// ── 入帳、取消 ──
+// ── 登記、取消 ──
 async function markBooked() {
   if (!selectedRows.value.length) { msg.value = '請先勾選申請'; return }
-  if (!confirm(`把 ${selectedRows.value.length} 筆標為「已入帳」？`)) return
+  if (!confirm(`把 ${selectedRows.value.length} 筆標為「已登記」？`)) return
   busy.value = true
   const { error } = await supabase.from('petty_requests').update({ status: 'booked' }).in('id', selectedRows.value.map((r) => r.id))
   busy.value = false
@@ -204,7 +204,7 @@ onMounted(load)
 
     <!-- 封存 -->
     <template v-else-if="tab === 'archive'">
-      <p class="muted small">封存以「送出申請的月份」為單位，當月每一筆申請都「已結束」才能封存整個月。「已結束」是指已入帳滿 4 個月，或是主管退回、已取消的申請。<br />封存時會先下載當月照片的 zip，再刪除雲端照片；申請紀錄會保留。</p>
+      <p class="muted small">封存以「送出申請的月份」為單位，當月每一筆申請都「已結束」才能封存整個月。「已結束」是指已登記滿 4 個月，或是主管退回、已取消的申請。<br />封存時會先下載當月照片的 zip，再刪除雲端照片；申請紀錄會保留。</p>
       <p v-if="archiving" class="msg">{{ archiving }}</p>
       <table class="month-table">
         <thead><tr><th>月份</th><th class="num">申請</th><th class="num">尚未結束</th><th class="num">尚未封存</th><th></th></tr></thead>
@@ -249,7 +249,7 @@ onMounted(load)
         <span class="spacer" />
         <label class="inline">核發日期<input v-model="disbursedDate" type="date" /></label>
         <button class="btn small primary" :disabled="!selected.size" @click="openPreview">{{ tab === 'printed' ? '重印預覽' : '列印預覽' }}</button>
-        <button v-if="tab === 'printed'" class="btn small" :disabled="!selected.size || busy" @click="markBooked">標已入帳</button>
+        <button v-if="tab === 'printed'" class="btn small" :disabled="!selected.size || busy" @click="markBooked">標已登記</button>
       </div>
       <p v-if="!list.length" class="muted center empty">{{ filterOn ? '沒有符合篩選條件的申請。' : tab === 'all' ? '還沒有申請。' : `沒有「${TABS.find((t) => t.key === tab).label}」的申請。` }}</p>
       <div class="list">
