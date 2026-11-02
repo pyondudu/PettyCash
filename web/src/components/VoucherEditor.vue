@@ -68,10 +68,17 @@ function remove(i) {
   <div class="voucher-editor">
     <div class="section-head">
       <h3>{{ title }}（{{ list.length }} 張，合計 ${{ fmtMoney(total) }}）</h3>
-      <label class="btn small primary file-btn">
-        ＋ 加照片
-        <input type="file" accept="image/*" multiple :disabled="!!busy || !!editing" @change="addPhotos" />
-      </label>
+      <div class="photo-btns">
+        <!-- 拍照：手機直接開後鏡頭；選照片：從相簿挑，可多選 -->
+        <label class="btn small primary file-btn">
+          拍照
+          <input type="file" accept="image/*" capture="environment" :disabled="!!busy || !!editing" @change="addPhotos" />
+        </label>
+        <label class="btn small file-btn file-btn-alt">
+          選照片
+          <input type="file" accept="image/*" multiple :disabled="!!busy || !!editing" @change="addPhotos" />
+        </label>
+      </div>
     </div>
     <slot name="hint" />
     <p v-if="busy" class="msg">{{ busy }}</p>
