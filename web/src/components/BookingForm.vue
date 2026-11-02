@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { errText } from '../lib/store'
 import { NO_RECEIPT_NO, bookingMissing, fmtDate, fmtMoney } from '../lib/petty'
 
-// 「已核發」卡片下方：登記前由管理者填類別、領收人、各憑證收據號碼（寫入 Google 試算表用）
+// 「待列印」「已核發」卡片下方：由管理者填類別、領收人、各憑證收據號碼（登記時寫入 Google 試算表）
 const props = defineProps({
   request: { type: Object, required: true },
   categories: { type: Array, default: () => [] },
@@ -54,6 +54,7 @@ async function save() {
 
 <template>
   <form class="booking" @submit.prevent="save">
+    <div class="booking-title">登記資料<span class="muted small">（寫入試算表用，可在列印前或核發後填）</span></div>
     <div class="booking-row">
       <label>類別
         <select v-model="form.category">

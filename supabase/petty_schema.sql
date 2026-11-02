@@ -387,7 +387,7 @@ begin
 end $$;
 
 -- ─────────────────────────────────────────────
--- RPC：管理者登記前填類別、領收人、各憑證收據號碼（只限「已核發」、未封存）
+-- RPC：管理者登記前填類別、領收人、各憑證收據號碼（「待列印」或「已核發」、未封存）
 -- p_receipts = [{ id: 憑證 id, receipt_no: '...' }]
 -- ─────────────────────────────────────────────
 create or replace function public.petty_save_booking(p_request_id uuid, p_category text, p_payee text, p_receipts jsonb)
@@ -400,8 +400,8 @@ begin
     raise exception '只有管理者可以登記';
   end if;
   select * into r from public.petty_requests where id = p_request_id for update;
-  if r.id is null or r.status <> 'printed' or r.archived_at is not null then
-    raise exception '只有「已核發」的申請可以填登記資料';
+  if r.id is null or r.status not in ('approved', 'printed') or r.archived_at is not null then
+    raise exception '只有「待列印」或「已核發」的申請可以填登記資料';
   end if;
   perform set_config('petty.internal', 'on', true);
   update public.petty_requests

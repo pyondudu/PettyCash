@@ -286,7 +286,7 @@ onMounted(load)
                 <button v-else class="btn small ghost danger" @click="returning = r.id; reason = ''">取消申請</button>
               </template>
             </template>
-            <template v-if="r.status === 'printed'" #extra>
+            <template v-if="['approved', 'printed'].includes(r.status)" #extra>
               <BookingForm :request="r" :categories="categories" @saved="reloadOne(r.id)" />
             </template>
           </RequestCard>

@@ -263,6 +263,7 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
 .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
 .filter-bar select { width: auto; padding: 4px 8px; }
 .booking { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 8px; }
+.booking-title { font-weight: 600; font-size: 0.9rem; }
 .booking-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
 .booking-receipt { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
 .booking-receipt input, .booking-row select, .booking-row input { padding: 5px 8px; }
