@@ -106,9 +106,10 @@ function appendRow_(sheet, r) {
     src.copyTo(dst, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);
   }
 
-  var p = r.date.split('/');
+  // 用試算表的時區轉日期（Apps Script 預設是美國時區，直接 new Date 會差一天）
+  var tz = sheet.getParent().getSpreadsheetTimeZone();
   var values = {
-    date: new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])),
+    date: Utilities.parseDate(r.date, tz, 'yyyy/MM/dd'),
     category: r.category,
     receipts: r.receipts,
     description: r.description,
@@ -121,6 +122,14 @@ function appendRow_(sheet, r) {
   Object.keys(values).forEach(function (k) {
     if (head.cols[k]) sheet.getRange(target, head.cols[k]).setValue(values[k]);
   });
+
+  // 原本手填時「核准者」多半空白、沒設對齊：照「申請者」欄的對齊方式
+  if (head.cols.approver && head.cols.applicant) {
+    var ref = sheet.getRange(target, head.cols.applicant);
+    sheet.getRange(target, head.cols.approver)
+      .setHorizontalAlignment(ref.getHorizontalAlignment())
+      .setVerticalAlignment(ref.getVerticalAlignment());
+  }
 }
 
 /** 找標題列與各欄位置（欄號從 1 起算） */
