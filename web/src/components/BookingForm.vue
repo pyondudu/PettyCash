@@ -1,0 +1,81 @@
+<script setup>
+import { computed, reactive, ref, watch } from 'vue'
+import { supabase } from '../lib/supabase'
+import { errText } from '../lib/store'
+import { NO_RECEIPT_NO, bookingMissing, fmtDate, fmtMoney } from '../lib/petty'
+
+// 「已核發」卡片下方：登記前由管理者填類別、領收人、各憑證收據號碼（寫入 Google 試算表用）
+const props = defineProps({
+  request: { type: Object, required: true },
+  categories: { type: Array, default: () => [] },
+})
+const emit = defineEmits(['saved'])
+
+const vouchers = computed(() => [...(props.request.petty_vouchers ?? [])].sort((a, b) => a.id - b.id))
+const form = reactive({ category: '', payee_name: '', receipts: {} })
+const busy = ref(false)
+const msg = ref('')
+const ok = ref('')
+
+function reset() {
+  const r = props.request
+  form.category = r.category ?? ''
+  form.payee_name = r.payee_name ?? r.applicant_name ?? ''
+  form.receipts = Object.fromEntries(vouchers.value.map((v) => [v.id, v.receipt_no ?? '']))
+}
+watch(() => props.request, reset, { immediate: true })
+
+const saved = computed(() => {
+  const r = props.request
+  return (r.category ?? '') === form.category.trim()
+    && (r.payee_name ?? '') === form.payee_name.trim()
+    && vouchers.value.every((v) => (v.receipt_no ?? '') === (form.receipts[v.id] ?? '').trim())
+})
+const missing = computed(() => bookingMissing(props.request, form))
+// 設定裡已刪掉、但這筆已選的舊類別仍要顯示
+const options = computed(() => form.category && !props.categories.includes(form.category)
+  ? [form.category, ...props.categories] : props.categories)
+
+async function save() {
+  msg.value = ok.value = ''
+  busy.value = true
+  const { error } = await supabase.rpc('petty_save_booking', {
+    p_request_id: props.request.id,
+    p_category: form.category,
+    p_payee: form.payee_name,
+    p_receipts: vouchers.value.map((v) => ({ id: v.id, receipt_no: form.receipts[v.id] ?? '' })),
+  })
+  busy.value = false
+  if (error) { msg.value = '儲存失敗：' + errText(error); return }
+  ok.value = '已儲存'
+  emit('saved')
+}
+</script>
+
+<template>
+  <form class="booking" @submit.prevent="save">
+    <div class="booking-row">
+      <label>類別
+        <select v-model="form.category">
+          <option value="">請選擇</option>
+          <option v-for="c in options" :key="c" :value="c">{{ c }}</option>
+        </select>
+      </label>
+      <label>領收人<input v-model="form.payee_name" /></label>
+    </div>
+    <div v-for="(v, i) in vouchers" :key="v.id" class="booking-receipt">
+      <span class="muted small">憑證 {{ i + 1 }}：{{ fmtDate(v.voucher_date) }}　${{ fmtMoney(v.amount) }}</span>
+      <input v-model="form.receipts[v.id]" placeholder="收據／發票號碼" />
+      <button type="button" class="btn small ghost" @click="form.receipts[v.id] = NO_RECEIPT_NO">無號碼</button>
+    </div>
+    <div class="booking-foot">
+      <span v-if="missing.length" class="muted small">還缺：{{ missing.join('、') }}</span>
+      <span v-else-if="!saved" class="muted small">已填完，記得儲存</span>
+      <span v-else class="small ok-text">登記資料已完成</span>
+      <span class="spacer" />
+      <span v-if="msg" class="small error-text">{{ msg }}</span>
+      <span v-else-if="ok && saved" class="small ok-text">{{ ok }}</span>
+      <button class="btn small" :class="{ primary: !saved }" :disabled="busy || saved">儲存</button>
+    </div>
+  </form>
+</template>

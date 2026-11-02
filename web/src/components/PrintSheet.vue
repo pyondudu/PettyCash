@@ -58,7 +58,7 @@ const submitterLines = computed(() => breakName(f.value.submitter))
                 <div class="sign-text">{{ approverLines }}</div>
                 <img v-if="f.approver" :src="approvedStamp" class="stamp" alt="核准" />
               </div>
-              <div><div class="sign-label">收款人：</div><div class="sign-text">{{ f.payee }}</div></div>
+              <div><div class="sign-label">領收人：</div><div class="sign-text">{{ f.payee }}</div></div>
               <div><div class="sign-label">表單申請人：</div><div class="sign-text">{{ submitterLines }}</div></div>
             </div>
           </td>

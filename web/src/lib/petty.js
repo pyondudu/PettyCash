@@ -242,9 +242,36 @@ export function printFields(r, keeperName) {
     disbursedDate: fmtDate(r.disbursed_date),
     note: r.note ?? '',
     approver: approvedText(r.approver_name, r.approved_at),
-    payee: '',
+    payee: '',   // 「領收人」欄留白給本人簽名
     submitter: submittedText(r.applicant_name, r.submitted_at),
   }
+}
+
+// ─────────────────────────────────────────────
+// 登記（寫入 Google 試算表前，管理者填類別、領收人、收據號碼）
+// ─────────────────────────────────────────────
+export const NO_RECEIPT_NO = '無號碼'
+
+// 設定裡的類別：一行一個，去掉空白行與重複
+export function parseCategories(text) {
+  return [...new Set((text ?? '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean))]
+}
+
+// 試算表「收據編號」欄的一行：EW-02015333(2026.10.22) NT696
+export function receiptLine(v) {
+  const d = (v.voucher_date ?? '').replaceAll('-', '.')
+  return `${(v.receipt_no ?? '').trim()}(${d}) NT${fmtMoney(v.amount)}`
+}
+
+// 還缺哪些登記資料（空陣列＝可以登記）；booking = { category, payee_name, receipts: { 憑證id: 號碼 } }
+export function bookingMissing(r, booking = r) {
+  const miss = []
+  if (!(booking.category ?? '').trim()) miss.push('類別')
+  if (!(booking.payee_name ?? '').trim()) miss.push('領收人')
+  const receipts = booking.receipts
+  const noNo = (r.petty_vouchers ?? []).filter((v) => !((receipts ? receipts[v.id] : v.receipt_no) ?? '').trim())
+  if (noNo.length) miss.push(`收據號碼（${noNo.length} 張）`)
+  return miss
 }
 
 // ─────────────────────────────────────────────

@@ -4,12 +4,13 @@ import { zipSync } from 'fflate'
 import { supabase } from '../lib/supabase'
 import { refreshCounts, errText } from '../lib/store'
 import {
-  STATUS, fmtMoney, todayTaipei, canTransition,
+  STATUS, fmtMoney, todayTaipei, canTransition, parseCategories, bookingMissing,
   archiveMonths, archiveZipName, archivePhotoPath, fmtMonth, requestMonth,
 } from '../lib/petty'
 import { BUCKET, downloadPhoto, saveBlob } from '../lib/photos'
 import RequestCard from '../components/RequestCard.vue'
 import PrintSheet from '../components/PrintSheet.vue'
+import BookingForm from '../components/BookingForm.vue'
 
 const TABS = [
   { key: 'all', label: '全部' },
@@ -24,6 +25,7 @@ const TABS = [
 
 const rows = ref([])
 const keeper = ref('')
+const categories = ref([])
 const tab = ref('approved')
 const loading = ref(true)
 const msg = ref('')
@@ -63,12 +65,14 @@ async function load() {
   loading.value = true
   const [r, s] = await Promise.all([
     supabase.from('petty_requests').select('*, petty_vouchers(*)').order('submitted_at', { ascending: false }),
-    supabase.from('petty_settings').select('value').eq('key', 'keeper_name').maybeSingle(),
+    supabase.from('petty_settings').select('key, value').in('key', ['keeper_name', 'categories']),
   ])
   loading.value = false
   if (r.error) msg.value = '讀取失敗：' + errText(r.error)
   rows.value = r.data ?? []
-  keeper.value = s.data?.value ?? ''
+  const settings = Object.fromEntries((s.data ?? []).map((x) => [x.key, x.value]))
+  keeper.value = settings.keeper_name ?? ''
+  categories.value = parseCategories(settings.categories)
   selected.value = new Set([...selected.value].filter((id) => list.value.some((x) => x.id === id)))
   refreshCounts()
 }
@@ -126,10 +130,26 @@ async function printNow() {
   await load()
 }
 
+// 只重新讀一筆（儲存登記資料後用，不影響其他卡片還沒儲存的輸入）
+async function reloadOne(id) {
+  const { data, error } = await supabase.from('petty_requests').select('*, petty_vouchers(*)').eq('id', id).single()
+  if (error) { msg.value = '讀取失敗：' + errText(error); return }
+  rows.value = rows.value.map((x) => (x.id === id ? data : x))
+}
+
 // ── 登記、取消 ──
 async function markBooked() {
+  msg.value = ''
   if (!selectedRows.value.length) { msg.value = '請先勾選申請'; return }
-  if (!confirm(`把 ${selectedRows.value.length} 筆標為「已登記」？`)) return
+  const notReady = selectedRows.value
+    .map((r) => [r, bookingMissing(r)])
+    .filter(([, m]) => m.length)
+  if (notReady.length) {
+    msg.value = '以下申請的登記資料還沒填完或還沒儲存：\n' +
+      notReady.map(([r, m]) => `${r.applicant_name} $${fmtMoney(r.amount)}（${r.reason}）：缺 ${m.join('、')}`).join('\n')
+    return
+  }
+  if (!confirm(`把 ${selectedRows.value.length} 筆標為「已登記」？\n登記後約 1 分鐘內會自動寫入 Google 試算表。`)) return
   busy.value = true
   const { error } = await supabase.from('petty_requests').update({ status: 'booked' }).in('id', selectedRows.value.map((r) => r.id))
   busy.value = false
@@ -265,6 +285,9 @@ onMounted(load)
                 </template>
                 <button v-else class="btn small ghost danger" @click="returning = r.id; reason = ''">取消申請</button>
               </template>
+            </template>
+            <template v-if="r.status === 'printed'" #extra>
+              <BookingForm :request="r" :categories="categories" @saved="reloadOne(r.id)" />
             </template>
           </RequestCard>
         </div>

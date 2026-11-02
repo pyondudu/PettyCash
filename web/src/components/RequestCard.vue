@@ -55,7 +55,10 @@ watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
         <template v-if="request.status === 'returned'"><dt>取消</dt><dd>{{ fmtTaipei(request.rejected_at) }}</dd></template>
         <template v-if="request.disbursed_date"><dt>核發日期</dt><dd>{{ fmtDate(request.disbursed_date) }}</dd></template>
         <template v-if="request.printed_at"><dt>列印</dt><dd>{{ fmtTaipei(request.printed_at) }}</dd></template>
+        <template v-if="request.category"><dt>類別</dt><dd>{{ request.category }}</dd></template>
+        <template v-if="request.payee_name"><dt>領收人</dt><dd>{{ request.payee_name }}</dd></template>
         <template v-if="request.booked_at"><dt>登記</dt><dd>{{ fmtTaipei(request.booked_at) }}</dd></template>
+        <template v-if="showApplicant && request.status === 'booked'"><dt>試算表</dt><dd>{{ request.sheet_synced_at ? `已寫入（${fmtTaipei(request.sheet_synced_at)}）` : '等待寫入（約 1 分鐘內）' }}</dd></template>
       </dl>
 
       <h4 v-if="vouchers.length">憑證 {{ vouchers.length }} 張，合計 ${{ fmtMoney(voucherTotal) }}</h4>
@@ -68,7 +71,7 @@ watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
             <img :src="urls[v.photo_path]" :alt="`憑證 ${i + 1}`" loading="lazy" />
           </button>
           <span v-else class="thumb empty">{{ request.archived_at ? '已封存' : '…' }}</span>
-          <span>{{ fmtDate(v.voucher_date) }}<br /><strong>${{ fmtMoney(v.amount) }}</strong></span>
+          <span>{{ fmtDate(v.voucher_date) }}<br /><strong>${{ fmtMoney(v.amount) }}</strong><template v-if="v.receipt_no"><br /><span class="muted small">{{ v.receipt_no }}</span></template></span>
         </li>
       </ul>
     </div>

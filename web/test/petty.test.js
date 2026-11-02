@@ -4,6 +4,7 @@ import {
   canTransition, canApprove, canAddVouchers, normalizeAmount, validateAmount, fmtMoney,
   normalizeDate, fmtDate, fmtTaipei, todayTaipei, approvedText, submittedText,
   voucherKey, findLocalDuplicates, voucherPairs, printFields, toLoginEmail,
+  parseCategories, receiptLine, bookingMissing, NO_RECEIPT_NO,
   addMonths, requestFinished, requestMonth, archiveZipName, archivePhotoPath, archiveMonths,
 } from '../src/lib/petty.js'
 
@@ -175,4 +176,21 @@ test('整月封存：每筆都結束才可以', () => {
 test('toLoginEmail 補網域並轉小寫', () => {
   assert.equal(toLoginEmail(' Alice '), 'alice@parttrail.local')
   assert.equal(toLoginEmail('someone@example.com'), 'someone@example.com')
+})
+
+test('類別：一行一個，去掉空白與重複', () => {
+  assert.deepEqual(parseCategories(' 交通費 \n\n文具用品\r\n交通費\n'), ['交通費', '文具用品'])
+  assert.deepEqual(parseCategories(null), [])
+})
+
+test('試算表收據編號一行', () => {
+  assert.equal(receiptLine({ receipt_no: 'EW-02015333', voucher_date: '2026-10-22', amount: 696 }), 'EW-02015333(2026.10.22) NT696')
+  assert.equal(receiptLine({ receipt_no: NO_RECEIPT_NO, voucher_date: '2026-11-02', amount: 1890 }), '無號碼(2026.11.02) NT1,890')
+})
+
+test('登記前缺少的資料', () => {
+  const r = { category: '', payee_name: '江林泉', petty_vouchers: [{ id: 1, receipt_no: 'A1' }, { id: 2, receipt_no: ' ' }] }
+  assert.deepEqual(bookingMissing(r), ['類別', '收據號碼（1 張）'])
+  assert.deepEqual(bookingMissing(r, { category: '運費', payee_name: '江林泉', receipts: { 1: 'A1', 2: NO_RECEIPT_NO } }), [])
+  assert.deepEqual(bookingMissing({ category: '運費', payee_name: '', petty_vouchers: [] }), ['領收人'])
 })
