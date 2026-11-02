@@ -42,7 +42,7 @@ watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
     </header>
     <p class="req-reason" @click="expanded = !expanded">{{ request.reason }}</p>
     <p v-if="request.reject_reason && ['rejected', 'returned'].includes(request.status)" class="reject">
-      退回原因：{{ request.reject_reason }}
+      {{ request.status === 'returned' ? '取消原因' : '退回原因' }}：{{ request.reject_reason }}
     </p>
 
     <div v-if="expanded" class="req-body">
@@ -52,7 +52,7 @@ watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
         <dt>送出</dt><dd>{{ submittedText(request.applicant_name, request.submitted_at) }}</dd>
         <template v-if="request.approved_at"><dt>核准</dt><dd>{{ approvedText(request.approver_name, request.approved_at) }}</dd></template>
         <template v-if="request.status === 'rejected'"><dt>退回</dt><dd>{{ request.approver_name }} 於 {{ fmtTaipei(request.rejected_at) }}</dd></template>
-        <template v-if="request.status === 'returned'"><dt>退回</dt><dd>{{ fmtTaipei(request.rejected_at) }}</dd></template>
+        <template v-if="request.status === 'returned'"><dt>取消</dt><dd>{{ fmtTaipei(request.rejected_at) }}</dd></template>
         <template v-if="request.disbursed_date"><dt>核發日期</dt><dd>{{ fmtDate(request.disbursed_date) }}</dd></template>
         <template v-if="request.printed_at"><dt>列印</dt><dd>{{ fmtTaipei(request.printed_at) }}</dd></template>
         <template v-if="request.booked_at"><dt>入帳</dt><dd>{{ fmtTaipei(request.booked_at) }}</dd></template>

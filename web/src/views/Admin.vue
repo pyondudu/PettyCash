@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { zipSync } from 'fflate'
 import { supabase } from '../lib/supabase'
 import { refreshCounts, errText } from '../lib/store'
@@ -12,6 +12,7 @@ import RequestCard from '../components/RequestCard.vue'
 import PrintSheet from '../components/PrintSheet.vue'
 
 const TABS = [
+  { key: 'all', label: '全部' },
   { key: 'approved', label: '待列印' },
   { key: 'pending', label: STATUS.pending.label },
   { key: 'printed', label: STATUS.printed.label },
@@ -30,12 +31,24 @@ const busy = ref(false)
 const selected = ref(new Set())
 const disbursedDate = ref(todayTaipei())
 const preview = ref(null)        // 列印預覽中的申請（已套用核發日期）
-const returning = ref(null)      // 正在填退回原因的申請 id
+const returning = ref(null)      // 正在填取消原因的申請 id
 const reason = ref('')
 const archiving = ref('')        // 封存進度文字
 
-const counts = computed(() => Object.fromEntries(TABS.map((t) => [t.key, rows.value.filter((r) => r.status === t.key).length])))
-const list = computed(() => rows.value.filter((r) => r.status === tab.value))
+// 篩選：月份（填寫日期的年月）、申請人；分頁筆數也跟著篩選
+const filter = ref({ month: '', name: '' })
+const monthOptions = computed(() => [...new Set(rows.value.map((r) => r.fill_date?.slice(0, 7)).filter(Boolean))].sort().reverse())
+const nameOptions = computed(() => [...new Set(rows.value.map((r) => r.applicant_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant')))
+const filtered = computed(() => rows.value.filter((r) =>
+  (!filter.value.month || r.fill_date?.startsWith(filter.value.month)) &&
+  (!filter.value.name || r.applicant_name === filter.value.name)))
+const filterOn = computed(() => !!(filter.value.month || filter.value.name))
+const inTab = (r, key) => key === 'all' || r.status === key
+const counts = computed(() => Object.fromEntries(TABS.map((t) => [t.key, filtered.value.filter((r) => inTab(r, t.key)).length])))
+const list = computed(() => filtered.value.filter((r) => inTab(r, tab.value)))
+const listTotal = computed(() => list.value.reduce((s, r) => s + Number(r.amount), 0))
+watch(filter, () => { selected.value = new Set(); returning.value = null }, { deep: true })
+function clearFilter() { filter.value = { month: '', name: '' } }
 const selectable = computed(() => ['approved', 'printed'].includes(tab.value))
 const selectedRows = computed(() => list.value.filter((r) => selected.value.has(r.id)))
 // A4 直式一頁兩筆（上、下半部）
@@ -56,7 +69,7 @@ async function load() {
   if (r.error) msg.value = '讀取失敗：' + errText(r.error)
   rows.value = r.data ?? []
   keeper.value = s.data?.value ?? ''
-  selected.value = new Set([...selected.value].filter((id) => rows.value.some((x) => x.id === id && x.status === tab.value)))
+  selected.value = new Set([...selected.value].filter((id) => list.value.some((x) => x.id === id)))
   refreshCounts()
 }
 
@@ -113,7 +126,7 @@ async function printNow() {
   await load()
 }
 
-// ── 入帳、退回 ──
+// ── 入帳、取消 ──
 async function markBooked() {
   if (!selectedRows.value.length) { msg.value = '請先勾選申請'; return }
   if (!confirm(`把 ${selectedRows.value.length} 筆標為「已入帳」？`)) return
@@ -126,11 +139,11 @@ async function markBooked() {
 }
 
 async function returnRequest(r) {
-  if (!reason.value.trim()) { msg.value = '請填寫退回原因'; return }
+  if (!reason.value.trim()) { msg.value = '請填寫取消原因'; return }
   busy.value = true
   const { error } = await supabase.from('petty_requests').update({ status: 'returned', reject_reason: reason.value }).eq('id', r.id)
   busy.value = false
-  if (error) { msg.value = '退回失敗：' + errText(error); return }
+  if (error) { msg.value = '取消失敗：' + errText(error); return }
   returning.value = null
   reason.value = ''
   await load()
@@ -191,7 +204,7 @@ onMounted(load)
 
     <!-- 封存 -->
     <template v-else-if="tab === 'archive'">
-      <p class="muted small">封存以「送出申請的月份」為單位，當月每一筆申請都「已結束」才能封存整個月。「已結束」是指已入帳滿 4 個月，或是主管退回、退回的申請。<br />封存時會先下載當月照片的 zip，再刪除雲端照片；申請紀錄會保留。</p>
+      <p class="muted small">封存以「送出申請的月份」為單位，當月每一筆申請都「已結束」才能封存整個月。「已結束」是指已入帳滿 4 個月，或是主管退回、已取消的申請。<br />封存時會先下載當月照片的 zip，再刪除雲端照片；申請紀錄會保留。</p>
       <p v-if="archiving" class="msg">{{ archiving }}</p>
       <table class="month-table">
         <thead><tr><th>月份</th><th class="num">申請</th><th class="num">尚未結束</th><th class="num">尚未封存</th><th></th></tr></thead>
@@ -213,6 +226,23 @@ onMounted(load)
     </template>
 
     <template v-else>
+      <div class="filter-bar">
+        <label class="inline">月份
+          <select v-model="filter.month">
+            <option value="">全部月份</option>
+            <option v-for="m in monthOptions" :key="m" :value="m">{{ m.replace('-', '/') }}</option>
+          </select>
+        </label>
+        <label class="inline">申請人
+          <select v-model="filter.name">
+            <option value="">全部人</option>
+            <option v-for="n in nameOptions" :key="n" :value="n">{{ n }}</option>
+          </select>
+        </label>
+        <button v-if="filterOn" class="btn small ghost" @click="clearFilter">清除篩選</button>
+        <span class="spacer" />
+        <span class="muted small">{{ list.length }} 筆，合計 ${{ fmtMoney(listTotal) }}</span>
+      </div>
       <div v-if="selectable && list.length" class="batch-bar">
         <label class="check"><input type="checkbox" :checked="selected.size === list.length" @change="toggleAll" />全選</label>
         <span class="muted">已選 {{ selected.size }} 筆</span>
@@ -221,7 +251,7 @@ onMounted(load)
         <button class="btn small primary" :disabled="!selected.size" @click="openPreview">{{ tab === 'printed' ? '重印預覽' : '列印預覽' }}</button>
         <button v-if="tab === 'printed'" class="btn small" :disabled="!selected.size || busy" @click="markBooked">標已入帳</button>
       </div>
-      <p v-if="!list.length" class="muted center empty">沒有「{{ TABS.find((t) => t.key === tab).label }}」的申請。</p>
+      <p v-if="!list.length" class="muted center empty">{{ filterOn ? '沒有符合篩選條件的申請。' : tab === 'all' ? '還沒有申請。' : `沒有「${TABS.find((t) => t.key === tab).label}」的申請。` }}</p>
       <div class="list">
         <div v-for="r in list" :key="r.id" class="selectable-row">
           <input v-if="selectable" type="checkbox" class="row-check" :checked="selected.has(r.id)" @change="toggle(r.id)" />
@@ -229,11 +259,11 @@ onMounted(load)
             <template #actions>
               <template v-if="canTransition(r.status, 'returned', 'admin')">
                 <template v-if="returning === r.id">
-                  <input v-model="reason" class="reason-input" placeholder="退回原因" />
-                  <button class="btn small danger" :disabled="busy" @click="returnRequest(r)">確定退回</button>
-                  <button class="btn small ghost" @click="returning = null">取消</button>
+                  <input v-model="reason" class="reason-input" placeholder="取消原因" />
+                  <button class="btn small danger" :disabled="busy" @click="returnRequest(r)">確定取消</button>
+                  <button class="btn small ghost" @click="returning = null">不取消</button>
                 </template>
-                <button v-else class="btn small ghost danger" @click="returning = r.id; reason = ''">退回</button>
+                <button v-else class="btn small ghost danger" @click="returning = r.id; reason = ''">取消申請</button>
               </template>
             </template>
           </RequestCard>

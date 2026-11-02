@@ -260,6 +260,8 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
 .member-table tr.inactive td { color: var(--muted); }
 .member-table input, .member-table select { padding: 4px 8px; }
 .add-member .form-actions { margin-top: 10px; }
+.filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
+.filter-bar select { width: auto; padding: 4px 8px; }
 
 /* ── 列印預覽 ── */
 .print-preview { position: fixed; inset: 0; z-index: 200; background: #8a8a85; overflow: auto; }
