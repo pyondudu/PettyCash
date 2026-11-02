@@ -268,19 +268,20 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
   padding: 10px 16px; background: var(--surface); color: var(--text); border-bottom: 1px solid var(--border); font-size: 0.9rem;
 }
 .print-pages { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px; }
-/* 一張 A4 分成上下兩半（各 148mm），申請單（198×135mm）在每半張置中，中間虛線是裁切線 */
+/* 一張 A4 分成上下兩半（各 148.5mm），申請單（198×135mm）在每半張置中，中間虛線是裁切線 */
 .print-page { width: 210mm; background: #fff; box-shadow: 0 2px 12px rgb(0 0 0 / 0.3); }
-.print-half { height: 148mm; display: flex; align-items: center; justify-content: center; }
+.print-tip { flex-basis: 100%; padding: 6px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 0.85rem; }
+.print-half { height: 148.5mm; display: flex; align-items: center; justify-content: center; }
 .print-half + .print-half { border-top: 0.3mm dashed #999; }
 
 /* A4 直式、頁邊界 0，由 .print-half 自己留白；印表機的不可列印邊界落在空白處 */
 @page { size: A4 portrait; margin: 0; }
 @media print {
-  body { background: #fff; }
+  html, body { width: 210mm; background: #fff; }
   #app, .no-print { display: none !important; }
   .print-preview { position: static; background: none; overflow: visible; }
   .print-pages { display: block; padding: 0; }
-  .print-page { box-shadow: none; break-after: page; break-inside: avoid; }
+  .print-page { height: 297mm; overflow: hidden; box-shadow: none; break-after: page; break-inside: avoid; }
   .print-page:last-child { break-after: auto; }
 }
 

@@ -85,7 +85,20 @@ function openPreview() {
   preview.value = selectedRows.value.map((r) => ({ ...r, disbursed_date: disbursedDate.value }))
 }
 
+// Chrome 會記住上次的「縮放比例」，被設成自訂（例如 70）時申請單會印小；網頁無法強制設定，只能提醒
+const PRINT_TIP = '列印設定請確認：紙張 A4、縮放比例選「預設值」（或自訂 100）、邊界「預設值」。若印出來變小，多半是縮放比例被設成自訂。'
+const TIP_KEY = 'petty-print-tip-seen'
+function firstPrintTip() {
+  let seen = false
+  try { seen = localStorage.getItem(TIP_KEY) === '1' } catch {}
+  if (seen) return true
+  if (!confirm(PRINT_TIP + '\n\n按「確定」開啟列印視窗。')) return false
+  try { localStorage.setItem(TIP_KEY, '1') } catch {}
+  return true
+}
+
 async function printNow() {
+  if (!firstPrintTip()) return
   window.print()
   const n = preview.value.length
   if (!confirm(`已經印好了嗎？\n按「確定」把這 ${n} 筆標為「已列印」，核發日期 ${disbursedDate.value.replaceAll('-', '/')}。`)) return
@@ -236,6 +249,7 @@ onMounted(load)
           <span class="spacer" />
           <button class="btn small" @click="preview = null">關閉</button>
           <button class="btn small primary" :disabled="busy" @click="printNow">列印</button>
+          <div class="print-tip">{{ PRINT_TIP }}</div>
         </div>
         <div class="print-pages">
           <div v-for="(page, i) in previewPages" :key="i" class="print-page">
