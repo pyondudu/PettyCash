@@ -19,15 +19,17 @@ const vouchers = computed(() => [...(props.request.petty_vouchers ?? [])].sort((
 const voucherTotal = computed(() => vouchers.value.reduce((s, v) => s + Number(v.amount), 0))
 
 async function loadPhotos() {
-  if (props.request.archived_at || Object.keys(urls.value).length) return
+  const missing = vouchers.value.map((v) => v.photo_path).filter((p) => !urls.value[p])
+  if (props.request.archived_at || !missing.length) return
   try {
-    urls.value = await signedUrls(vouchers.value.map((v) => v.photo_path))
+    urls.value = { ...urls.value, ...(await signedUrls(missing)) }
   } catch (e) {
     photoError.value = '照片載入失敗：' + e.message
   }
 }
 
 watch(expanded, (v) => { if (v) loadPhotos() }, { immediate: true })
+watch(vouchers, () => { if (expanded.value) loadPhotos() })
 </script>
 
 <template>

@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { supabase } from '../lib/supabase'
 import { errText } from '../lib/store'
 import { NO_RECEIPT_NO, bookingMissing, fmtDate, fmtMoney } from '../lib/petty'
+import AddVouchers from './AddVouchers.vue'
 
 // 「待列印」「已核發」卡片下方：由管理者填類別、領收人、各憑證收據號碼（登記時寫入 Google 試算表）
 const props = defineProps({
@@ -16,6 +17,7 @@ const form = reactive({ category: '', payee_name: '', receipts: {} })
 const busy = ref(false)
 const msg = ref('')
 const ok = ref('')
+const adding = ref(false)   // 管理者替申請人補憑證
 
 function reset() {
   const r = props.request
@@ -23,7 +25,16 @@ function reset() {
   form.payee_name = r.payee_name ?? r.applicant_name ?? ''
   form.receipts = Object.fromEntries(vouchers.value.map((v) => [v.id, v.receipt_no ?? '']))
 }
-watch(() => props.request, reset, { immediate: true })
+// 同一筆重新讀取（例如補了憑證）時，保留還沒儲存的輸入，只補上新憑證的欄位
+watch(() => props.request, (r, old) => {
+  if (!old || old.id !== r.id) return reset()
+  for (const v of vouchers.value) if (!(v.id in form.receipts)) form.receipts[v.id] = v.receipt_no ?? ''
+}, { immediate: true })
+
+function vouchersSaved() {
+  adding.value = false
+  emit('saved')
+}
 
 const saved = computed(() => {
   const r = props.request
@@ -53,7 +64,8 @@ async function save() {
 </script>
 
 <template>
-  <form class="booking" @submit.prevent="save">
+  <div class="booking">
+  <form class="booking-form" @submit.prevent="save">
     <div class="booking-title">登記資料<span class="muted small">（寫入試算表用，可在列印前或核發後填）</span></div>
     <div class="booking-row">
       <label>類別
@@ -79,4 +91,7 @@ async function save() {
       <button class="btn small" :class="{ primary: !saved }" :disabled="busy || saved">儲存</button>
     </div>
   </form>
+  <AddVouchers v-if="adding" :request="request" @saved="vouchersSaved" @cancel="adding = false" />
+  <button v-else type="button" class="btn small ghost booking-add" @click="adding = true">＋ 替申請人補憑證</button>
+  </div>
 </template>

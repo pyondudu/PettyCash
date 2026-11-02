@@ -289,7 +289,7 @@ begin
   return r;
 end $$;
 
--- RPC：申請人替自己的申請補憑證；已登記、主管退回、已取消或已封存的不能再補。回傳新增張數
+-- RPC：補憑證（申請人補自己的，管理者可替任何人補）；已登記、主管退回、已取消或已封存的不能再補。回傳新增張數
 create or replace function public.petty_add_vouchers(p_request_id uuid, p_vouchers jsonb)
 returns integer language plpgsql security definer set search_path = public as $$
 declare
@@ -300,7 +300,8 @@ begin
     raise exception '你不是零用金系統的成員';
   end if;
   select * into r from public.petty_requests where id = p_request_id for update;
-  if r.id is null or r.applicant_id <> auth.uid() then
+  -- 申請人補自己的；管理者可替任何人補（例如核准後才交來的車票）
+  if r.id is null or (r.applicant_id <> auth.uid() and public.petty_role() <> 'admin') then
     raise exception '只能替自己的申請補憑證';
   end if;
   if r.status not in ('pending', 'approved', 'printed') or r.archived_at is not null then
@@ -557,6 +558,11 @@ create policy "petty photo read" on storage.objects
     and (
       ((storage.foldername(name))[1] = auth.uid()::text and public.petty_role() is not null)
       or public.petty_role() in ('approver', 'admin')
+      -- 管理者替申請人補的照片放在管理者的資料夾，申請人也要看得到
+      or (public.petty_role() is not null and exists (
+            select 1 from public.petty_vouchers v
+            join public.petty_requests r on r.id = v.request_id
+            where v.photo_path = storage.objects.name and r.applicant_id = auth.uid()))
     )
   );
 
