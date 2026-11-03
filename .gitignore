@@ -8,3 +8,5 @@ dist
 # 含同事姓名、帳號、公司 Email，只留在本機
 PLAN.md
 supabase/petty_members_seed.sql
+# 公司內部文件不進版控（存放在程式庫外 ../PettyCash-內部文件/）
+*.pdf
