@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { supabase } from '../lib/supabase'
 import { toLoginEmail } from '../lib/petty'
-import companyLogo from '../assets/company-logo.png'
+import appLogo from '../assets/app-logo.png'
 
 const email = ref('')
 const password = ref('')
@@ -23,7 +23,7 @@ async function submit() {
 
 <template>
   <div class="center-box card login">
-    <img :src="companyLogo" alt="聲智科技" class="login-logo" />
+    <img :src="appLogo" alt="零用金" class="login-logo" />
     <h1>零用金申請</h1>
     <form @submit.prevent="submit">
       <label>帳號<input v-model="email" type="text" required autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="例：alice" /></label>
