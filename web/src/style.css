@@ -269,7 +269,7 @@ label.invalid > input, label.invalid > textarea { border-color: var(--danger); b
 .head-note { font-weight: 400; }
 .head-actions { display: flex; gap: 6px; }
 a.btn { text-decoration: none; }
-.btn.sheet { background: #f5a623; border-color: #f5a623; color: #2b1d00; font-weight: 600; }   /* 橘黃色：開啟零用金明細表 */
+.btn.sheet { background: #ffc61a; border-color: #ffc61a; color: #2b1d00; font-weight: 600; }   /* 橘黃色：開啟零用金明細表 */
 .page-head select { width: auto; padding: 4px 8px; }
 .booking { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 10px; }
 .booking-form { display: flex; flex-direction: column; gap: 8px; }
