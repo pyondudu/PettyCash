@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   canTransition, canApprove, canAddVouchers, normalizeAmount, validateAmount, fmtMoney,
   normalizeDate, fmtDate, fmtTaipei, todayTaipei, approvedText, submittedText,
-  voucherKey, findLocalDuplicates, voucherPairs, printFields, toLoginEmail,
+  voucherKey, findLocalDuplicates, voucherPairs, printFields, toLoginEmail, bookedLabel, APPROVED_STATUSES,
   parseCategories, receiptLine, bookingMissing, NO_RECEIPT_NO,
   addMonths, requestFinished, requestMonth, archiveZipName, archivePhotoPath, archiveMonths,
 } from '../src/lib/petty.js'
@@ -69,12 +69,20 @@ test('狀態轉換依角色', () => {
   assert.ok(canTransition('pending', 'rejected', 'approver'))
   assert.ok(!canTransition('approved', 'printed', 'approver'))
   assert.ok(!canTransition('pending', 'approved', 'admin'))
-  assert.ok(canTransition('approved', 'printed', 'admin'))
-  assert.ok(canTransition('printed', 'printed', 'admin'))
-  assert.ok(canTransition('printed', 'booked', 'admin'))
+  assert.ok(canTransition('approved', 'booked', 'admin'))
+  assert.ok(canTransition('printed', 'booked', 'admin'))   // 舊資料
+  assert.ok(!canTransition('approved', 'printed', 'admin'))   // 列印不改狀態
+  assert.ok(!canTransition('pending', 'booked', 'admin'))
   assert.ok(canTransition('approved', 'returned', 'admin'))
   assert.ok(!canTransition('booked', 'returned', 'admin'))
   assert.ok(!canTransition('pending', 'approved', 'applicant'))
+})
+
+test('已核准分頁的登記標示', () => {
+  assert.equal(bookedLabel({ status: 'approved' }), '未登記')
+  assert.equal(bookedLabel({ status: 'printed' }), '未登記')
+  assert.equal(bookedLabel({ status: 'booked' }), '已登記')
+  assert.deepEqual(APPROVED_STATUSES, ['approved', 'printed', 'booked'])
 })
 
 test('入帳前可以補憑證', () => {
@@ -127,7 +135,7 @@ test('列印欄位對應', () => {
     reason: '買文具',
     amount: '$1,500',
     keeper: '林美華',
-    disbursedDate: '2026/10/31',
+    disbursedDate: '',   // 留白蓋日期戳
     note: '',
     approver: '陳大文 已於 2026/10/30 10:00:00 核准',
     payee: '',

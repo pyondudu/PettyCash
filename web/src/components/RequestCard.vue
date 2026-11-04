@@ -8,6 +8,8 @@ const props = defineProps({
   request: { type: Object, required: true },
   showApplicant: { type: Boolean, default: false },
   open: { type: Boolean, default: false },
+  pillText: { type: String, default: '' },    // 取代狀態文字（管理頁已核准分頁顯示「未登記／已登記」）
+  pillClass: { type: String, default: '' },
 })
 
 const expanded = ref(props.open)
@@ -36,7 +38,7 @@ watch(vouchers, () => { if (expanded.value) loadPhotos() })
   <article class="req card" :class="'st-' + request.status">
     <header class="req-head" @click="expanded = !expanded">
       <div class="req-title">
-        <span class="pill" :class="request.status">{{ STATUS[request.status].label }}</span>
+        <span class="pill" :class="pillClass || request.status">{{ pillText || STATUS[request.status].label }}</span>
         <strong>{{ fmtDate(request.fill_date) }}</strong>
         <span v-if="showApplicant">{{ request.applicant_name }}<span v-if="request.applicant_unit" class="muted">（{{ request.applicant_unit }}）</span></span>
       </div>
@@ -55,8 +57,6 @@ watch(vouchers, () => { if (expanded.value) loadPhotos() })
         <template v-if="request.approved_at"><dt>核准</dt><dd>{{ approvedText(request.approver_name, request.approved_at) }}</dd></template>
         <template v-if="request.status === 'rejected'"><dt>退回</dt><dd>{{ request.approver_name }} 於 {{ fmtTaipei(request.rejected_at) }}</dd></template>
         <template v-if="request.status === 'returned'"><dt>取消</dt><dd>{{ fmtTaipei(request.rejected_at) }}</dd></template>
-        <template v-if="request.disbursed_date"><dt>核發日期</dt><dd>{{ fmtDate(request.disbursed_date) }}</dd></template>
-        <template v-if="request.printed_at"><dt>列印</dt><dd>{{ fmtTaipei(request.printed_at) }}</dd></template>
         <template v-if="request.category"><dt>類別</dt><dd>{{ request.category }}</dd></template>
         <template v-if="request.payee_name"><dt>領收人</dt><dd>{{ request.payee_name }}</dd></template>
         <template v-if="request.booked_at"><dt>登記</dt><dd>{{ fmtTaipei(request.booked_at) }}</dd></template>

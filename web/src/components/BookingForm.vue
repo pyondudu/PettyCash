@@ -5,7 +5,7 @@ import { errText } from '../lib/store'
 import { NO_RECEIPT_NO, bookingMissing, fmtDate, fmtMoney } from '../lib/petty'
 import AddVouchers from './AddVouchers.vue'
 
-// 「待列印」「已核發」卡片下方：由管理者填類別、領收人、各憑證收據號碼（登記時寫入 Google 試算表）
+// 管理頁「已核准」分頁未登記的卡片下方：由管理者填類別、領收人、各憑證收據號碼（登記時寫入 Google 試算表）
 const props = defineProps({
   request: { type: Object, required: true },
   categories: { type: Array, default: () => [] },

@@ -6,9 +6,9 @@ export const STATUS = {
   pending: { label: '待主管核准' },
   approved: { label: '已核准' },
   rejected: { label: '主管退回' },
-  printed: { label: '已核發' },   // 已列印、零用金已核發
+  printed: { label: '已核發' },   // 舊流程（列印會改狀態）留下的，網頁當作已核准、未登記
   booked: { label: '已登記' },
-  returned: { label: '已取消' },   // 管理者在流程中途取消
+  returned: { label: '管理者取消' },   // 管理者在流程中途取消
 }
 export const STATUS_KEYS = Object.keys(STATUS)
 
@@ -21,12 +21,11 @@ export const ROLES = {
   admin: '管理者',
 }
 
-// 角色 → 允許的 [原狀態, 新狀態]；printed → printed 是重印（可改核發日期）
+// 角色 → 允許的 [原狀態, 新狀態]；列印不改狀態，已核准直接登記（printed 是舊資料）
 const TRANSITIONS = {
   approver: [['pending', 'approved'], ['pending', 'rejected']],
   admin: [
-    ['approved', 'printed'],
-    ['printed', 'printed'],
+    ['approved', 'booked'],
     ['printed', 'booked'],
     ['pending', 'returned'],
     ['approved', 'returned'],
@@ -36,6 +35,13 @@ const TRANSITIONS = {
 
 export function canTransition(from, to, role) {
   return (TRANSITIONS[role] ?? []).some(([f, t]) => f === from && t === to)
+}
+
+// 管理頁「已核准」分頁：核准之後的申請（含舊資料的已核發、已登記）
+export const APPROVED_STATUSES = ['approved', 'printed', 'booked']
+export const isBooked = (r) => r.status === 'booked'
+export function bookedLabel(r) {
+  return isBooked(r) ? '已登記' : '未登記'
 }
 
 // 憑證選填：申請人可在登記前補上（主管退回、已取消、已封存的不行）
@@ -252,7 +258,7 @@ export function printFields(r, keeperName) {
     reason: r.reason ?? '',
     amount: r.amount ? `$${fmtMoney(r.amount)}` : '',
     keeper: keeperName ?? '',
-    disbursedDate: fmtDate(r.disbursed_date),
+    disbursedDate: '',   // 核發日期留白，蓋日期戳
     note: r.note ?? '',
     approver: approvedText(r.approver_name, r.approved_at),
     payee: '',   // 「領收人」欄留白給本人簽名

@@ -6,8 +6,9 @@
 -- 狀態（status）：
 --   draft 草稿（只有本人看得到，可修改、刪除）→ (本人送出) pending
 --   pending 待主管核准 → (主管) approved 已核准 / rejected 主管退回
---   approved → (管理者列印) printed 已核發 → (管理者) booked 已登記
---   pending / approved / printed → (管理者) returned 已取消（流程中途取消）
+--   approved → (管理者登記) booked 已登記（列印不改狀態，申請單核發日期留白蓋日期戳）
+--   printed 已核發：舊流程留下的狀態，網頁當作已核准、未登記，一樣可以登記
+--   pending / approved / printed → (管理者) returned 管理者取消（流程中途取消）
 -- 封存：依申請編號的年月整月封存。該月每筆都「已登記滿 4 個月」或「主管退回／已取消」後，
 --   管理者下載該月照片 zip、呼叫 petty_archive_month，再刪掉雲端照片（申請紀錄保留）。
 -- 規則要和 web/src/lib/petty.js 一致。
@@ -51,7 +52,7 @@ create table if not exists public.petty_requests (
   approved_at     timestamptz,
   reject_reason   text,             -- 主管退回或管理者退回的原因
   rejected_at     timestamptz,
-  disbursed_date  date,             -- 零用金核發日期（列印前選擇）
+  disbursed_date  date,             -- 寫入試算表的日期：登記當天（台北）
   printed_at      timestamptz,
   booked_at       timestamptz
 );
@@ -214,7 +215,8 @@ begin
     r.disbursed_date := new.disbursed_date;
     r.printed_at     := now();
 
-  elsif v_role = 'admin' and old.status = 'printed' and new.status = 'booked' then
+  -- 登記：已核准（或舊資料的已核發）→ 已登記；試算表「日期」用登記當天（台北），存在 disbursed_date
+  elsif v_role = 'admin' and old.status in ('approved', 'printed') and new.status = 'booked' then
     if coalesce(trim(old.category), '') = '' then
       raise exception '申請 % 還沒選類別', old.request_no;
     end if;
@@ -226,6 +228,7 @@ begin
       raise exception '申請 % 還有憑證沒填收據號碼（沒有號碼請填「無號碼」）', old.request_no;
     end if;
     r.booked_at := now();
+    r.disbursed_date := (now() at time zone 'Asia/Taipei')::date;
 
   -- 封存（網頁透過 petty_archive_month 整月一起做）：已登記滿 4 個月，或主管退回／已取消
   elsif v_role = 'admin' and old.status = new.status and old.status in ('booked', 'rejected', 'returned')
@@ -505,7 +508,7 @@ begin
 end $$;
 
 -- ─────────────────────────────────────────────
--- RPC：管理者登記前填類別、領收人、各憑證收據號碼（「待列印」或「已核發」、未封存）
+-- RPC：管理者登記前填類別、領收人、各憑證收據號碼（已核准、未登記、未封存）
 -- p_receipts = [{ id: 憑證 id, receipt_no: '...' }]
 -- ─────────────────────────────────────────────
 create or replace function public.petty_save_booking(p_request_id uuid, p_category text, p_payee text, p_receipts jsonb)
@@ -519,7 +522,7 @@ begin
   end if;
   select * into r from public.petty_requests where id = p_request_id for update;
   if r.id is null or r.status not in ('approved', 'printed') or r.archived_at is not null then
-    raise exception '只有「待列印」或「已核發」的申請可以填登記資料';
+    raise exception '只有「已核准」且還沒登記的申請可以填登記資料';
   end if;
   perform set_config('petty.internal', 'on', true);
   update public.petty_requests

@@ -4,22 +4,21 @@ import { zipSync } from 'fflate'
 import { supabase } from '../lib/supabase'
 import { refreshCounts, errText } from '../lib/store'
 import {
-  STATUS, fmtMoney, todayTaipei, canTransition, parseCategories, bookingMissing,
+  STATUS, fmtMoney, canTransition, parseCategories, bookingMissing,
   archiveMonths, archiveZipName, archivePhotoPath, fmtMonth, requestMonth,
+  APPROVED_STATUSES, isBooked, bookedLabel,
 } from '../lib/petty'
 import { BUCKET, downloadPhoto, saveBlob } from '../lib/photos'
 import RequestCard from '../components/RequestCard.vue'
 import PrintSheet from '../components/PrintSheet.vue'
 import BookingForm from '../components/BookingForm.vue'
 
+// 分頁 → 包含的狀態（null = 全部）；已核准分頁的數字只算未登記
 const TABS = [
-  { key: 'all', label: '全部' },
-  { key: 'approved', label: '待列印' },
-  { key: 'pending', label: STATUS.pending.label },
-  { key: 'printed', label: STATUS.printed.label },
-  { key: 'booked', label: STATUS.booked.label },
-  { key: 'rejected', label: STATUS.rejected.label },
-  { key: 'returned', label: STATUS.returned.label },
+  { key: 'all', label: '全部', statuses: null },
+  { key: 'pending', label: STATUS.pending.label, statuses: ['pending'] },
+  { key: 'approved', label: '已核准', statuses: APPROVED_STATUSES },
+  { key: 'rejected', label: '已退回', statuses: ['rejected', 'returned'] },
   { key: 'archive', label: '封存' },
 ]
 
@@ -32,8 +31,8 @@ const loading = ref(true)
 const msg = ref('')
 const busy = ref(false)
 const selected = ref(new Set())
-const disbursedDate = ref(todayTaipei())
-const preview = ref(null)        // 列印預覽中的申請（已套用核發日期）
+const unbookedOnly = ref(false)   // 已核准分頁：只看未登記
+const preview = ref(null)        // 列印預覽中的申請
 const returning = ref(null)      // 正在填取消原因的申請 id
 const reason = ref('')
 const archiving = ref('')        // 封存進度文字
@@ -46,13 +45,20 @@ const filtered = computed(() => rows.value.filter((r) =>
   (!filter.value.month || r.fill_date?.startsWith(filter.value.month)) &&
   (!filter.value.name || r.applicant_name === filter.value.name)))
 const filterOn = computed(() => !!(filter.value.month || filter.value.name))
-const inTab = (r, key) => key === 'all' || r.status === key
-const counts = computed(() => Object.fromEntries(TABS.map((t) => [t.key, filtered.value.filter((r) => inTab(r, t.key)).length])))
-const list = computed(() => filtered.value.filter((r) => inTab(r, tab.value)))
+const tabDef = (key) => TABS.find((t) => t.key === key)
+const inTab = (r, key) => !tabDef(key).statuses || tabDef(key).statuses.includes(r.status)
+const counts = computed(() => Object.fromEntries(TABS.map((t) => [t.key,
+  filtered.value.filter((r) => inTab(r, t.key) && (t.key !== 'approved' || !isBooked(r))).length])))
+// 已核准分頁：未登記排前面（同組內維持送出時間新到舊）
+const list = computed(() => {
+  const l = filtered.value.filter((r) => inTab(r, tab.value))
+  if (tab.value !== 'approved') return l
+  return l.filter((r) => !unbookedOnly.value || !isBooked(r)).sort((a, b) => isBooked(a) - isBooked(b))
+})
 const listTotal = computed(() => list.value.reduce((s, r) => s + Number(r.amount), 0))
-watch(filter, () => { selected.value = new Set(); returning.value = null }, { deep: true })
+watch([filter, unbookedOnly], () => { selected.value = new Set(); returning.value = null }, { deep: true })
 function clearFilter() { filter.value = { month: '', name: '' } }
-const selectable = computed(() => ['approved', 'printed'].includes(tab.value))
+const selectable = computed(() => tab.value === 'approved')
 const selectedRows = computed(() => list.value.filter((r) => selected.value.has(r.id)))
 // A4 直式一頁兩筆（上、下半部）
 const previewPages = computed(() => {
@@ -100,8 +106,7 @@ function toggleAll() {
 function openPreview() {
   msg.value = ''
   if (!selectedRows.value.length) { msg.value = '請先勾選要列印的申請'; return }
-  if (!disbursedDate.value) { msg.value = '請選擇零用金核發日期'; return }
-  preview.value = selectedRows.value.map((r) => ({ ...r, disbursed_date: disbursedDate.value }))
+  preview.value = selectedRows.value
 }
 
 // Chrome 會記住上次的「縮放比例」，被設成自訂（例如 70）時申請單會印小；網頁無法強制設定，只能提醒
@@ -116,20 +121,10 @@ function firstPrintTip() {
   return true
 }
 
-async function printNow() {
+// 列印只是印出申請單，不改狀態（核發日期留白蓋日期戳）
+function printNow() {
   if (!firstPrintTip()) return
   window.print()
-  const n = preview.value.length
-  if (!confirm(`已經印好了嗎？\n按「確定」把這 ${n} 筆標為「已核發」，核發日期 ${disbursedDate.value.replaceAll('-', '/')}。`)) return
-  busy.value = true
-  const { error } = await supabase.from('petty_requests')
-    .update({ status: 'printed', disbursed_date: disbursedDate.value })
-    .in('id', preview.value.map((r) => r.id))
-  busy.value = false
-  if (error) { msg.value = '更新狀態失敗：' + errText(error); return }
-  preview.value = null
-  selected.value = new Set()
-  await load()
 }
 
 // 只重新讀一筆（儲存登記資料後用，不影響其他卡片還沒儲存的輸入）
@@ -142,8 +137,10 @@ async function reloadOne(id) {
 // ── 登記、取消 ──
 async function markBooked() {
   msg.value = ''
-  if (!selectedRows.value.length) { msg.value = '請先勾選申請'; return }
-  const notReady = selectedRows.value
+  const todo = selectedRows.value.filter((r) => !isBooked(r))
+  if (!todo.length) { msg.value = selectedRows.value.length ? '勾選的申請都已經登記過了' : '請先勾選要登記的申請'; return }
+  const skipped = selectedRows.value.length - todo.length
+  const notReady = todo
     .map((r) => [r, bookingMissing(r)])
     .filter(([, m]) => m.length)
   if (notReady.length) {
@@ -151,9 +148,10 @@ async function markBooked() {
       notReady.map(([r, m]) => `${r.applicant_name} $${fmtMoney(r.amount)}（${r.reason}）：缺 ${m.join('、')}`).join('\n')
     return
   }
-  if (!confirm(`把 ${selectedRows.value.length} 筆標為「已登記」？\n登記後約 1 分鐘內會自動寫入 Google 試算表。`)) return
+  const skipText = skipped ? `\n（另有 ${skipped} 筆已經登記過，會略過）` : ''
+  if (!confirm(`登記 ${todo.length} 筆？${skipText}\n登記後約 1 分鐘內會自動寫入 Google 試算表，日期為今天。`)) return
   busy.value = true
-  const { error } = await supabase.from('petty_requests').update({ status: 'booked' }).in('id', selectedRows.value.map((r) => r.id))
+  const { error } = await supabase.from('petty_requests').update({ status: 'booked' }).in('id', todo.map((r) => r.id))
   busy.value = false
   if (error) { msg.value = '更新失敗：' + errText(error); return }
   selected.value = new Set()
@@ -264,6 +262,7 @@ onMounted(load)
             <option v-for="n in nameOptions" :key="n" :value="n">{{ n }}</option>
           </select>
         </label>
+        <label v-if="tab === 'approved'" class="check"><input v-model="unbookedOnly" type="checkbox" />只看未登記</label>
         <button v-if="filterOn" class="btn small ghost" @click="clearFilter">清除篩選</button>
         <span class="spacer" />
         <span class="muted small">{{ list.length }} 筆，合計 ${{ fmtMoney(listTotal) }}</span>
@@ -272,15 +271,15 @@ onMounted(load)
         <label class="check"><input type="checkbox" :checked="selected.size === list.length" @change="toggleAll" />全選</label>
         <span class="muted">已選 {{ selected.size }} 筆</span>
         <span class="spacer" />
-        <label class="inline">核發日期<input v-model="disbursedDate" type="date" /></label>
-        <button class="btn small primary" :disabled="!selected.size" @click="openPreview">{{ tab === 'printed' ? '重印預覽' : '列印預覽' }}</button>
-        <button v-if="tab === 'printed'" class="btn small" :disabled="!selected.size || busy" @click="markBooked">標已登記</button>
+        <button class="btn small primary" :disabled="!selected.size" @click="openPreview">列印預覽</button>
+        <button class="btn small" :disabled="!selected.size || busy" @click="markBooked">登記</button>
       </div>
-      <p v-if="!list.length" class="muted center empty">{{ filterOn ? '沒有符合篩選條件的申請。' : tab === 'all' ? '還沒有申請。' : `沒有「${TABS.find((t) => t.key === tab).label}」的申請。` }}</p>
+      <p v-if="!list.length" class="muted center empty">{{ filterOn ? '沒有符合篩選條件的申請。' : tab === 'all' ? '還沒有申請。' : unbookedOnly && tab === 'approved' ? '沒有未登記的申請。' : `沒有「${tabDef(tab).label}」的申請。` }}</p>
       <div class="list">
         <div v-for="r in list" :key="r.id" class="selectable-row">
           <input v-if="selectable" type="checkbox" class="row-check" :checked="selected.has(r.id)" @change="toggle(r.id)" />
-          <RequestCard :request="r" show-applicant>
+          <RequestCard :request="r" show-applicant
+            :pill-text="tab === 'approved' ? bookedLabel(r) : ''" :pill-class="tab === 'approved' ? (isBooked(r) ? 'booked' : 'approved') : ''">
             <template #actions>
               <template v-if="canTransition(r.status, 'returned', 'admin')">
                 <template v-if="returning === r.id">
@@ -303,7 +302,7 @@ onMounted(load)
     <Teleport to="body">
       <div v-if="preview" class="print-preview">
         <div class="print-toolbar no-print">
-          <span>列印預覽：{{ preview.length }} 筆，A4 直式 {{ previewPages.length }} 頁（一頁上下兩筆，從中間虛線裁開），核發日期 {{ disbursedDate.replaceAll('-', '/') }}，合計 ${{ fmtMoney(preview.reduce((s, r) => s + r.amount, 0)) }}</span>
+          <span>列印預覽：{{ preview.length }} 筆，A4 直式 {{ previewPages.length }} 頁（一頁上下兩筆，從中間虛線裁開），核發日期留白蓋章，合計 ${{ fmtMoney(preview.reduce((s, r) => s + r.amount, 0)) }}</span>
           <span class="spacer" />
           <button class="btn small" @click="preview = null">關閉</button>
           <button class="btn small primary" :disabled="busy" @click="printNow">列印</button>

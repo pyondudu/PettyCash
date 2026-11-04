@@ -33,7 +33,7 @@ async function setSession(session) {
   await refreshCounts()
 }
 
-// 主管：待核准筆數；管理者：已核准待列印筆數
+// 主管：待核准筆數；管理者：已核准未登記筆數
 export async function refreshCounts() {
   if (!store.isApprover && !store.isAdmin) return
   const status = store.isApprover ? 'pending' : 'approved'
