@@ -213,7 +213,7 @@ onMounted(load)
     <div class="page-head">
       <h2>管理</h2>
       <div class="head-actions">
-        <a v-if="sheetUrl" class="btn small" :href="sheetUrl" target="_blank" rel="noopener">開啟明細表</a>
+        <a v-if="sheetUrl" class="btn small sheet" :href="sheetUrl" target="_blank" rel="noopener">開啟零用金明細表</a>
         <button class="btn small" @click="load">重新整理</button>
       </div>
     </div>

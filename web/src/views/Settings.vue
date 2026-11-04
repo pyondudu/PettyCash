@@ -54,7 +54,7 @@ onMounted(load)
       <p class="muted small">要和 Google 試算表「類別」欄的下拉選單一字不差，否則寫入後試算表會標示為無效值。</p>
     </fieldset>
     <fieldset class="card">
-      <label>零用金明細表網址（管理頁「開啟明細表」按鈕用）<input v-model="sheetUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/…" /></label>
+      <label>零用金明細表網址（管理頁「開啟零用金明細表」按鈕用）<input v-model="sheetUrl" type="url" placeholder="https://docs.google.com/spreadsheets/d/…" /></label>
       <p class="muted small">在 Google 試算表上方網址列整串複製貼上；留空則不顯示按鈕。</p>
     </fieldset>
     <p v-if="msg" class="msg error">{{ msg }}</p>
