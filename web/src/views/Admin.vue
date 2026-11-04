@@ -26,6 +26,7 @@ const TABS = [
 const rows = ref([])
 const keeper = ref('')
 const categories = ref([])
+const sheetUrl = ref('')
 const tab = ref('approved')
 const loading = ref(true)
 const msg = ref('')
@@ -65,7 +66,7 @@ async function load() {
   loading.value = true
   const [r, s] = await Promise.all([
     supabase.from('petty_requests').select('*, petty_vouchers(*)').order('submitted_at', { ascending: false }),
-    supabase.from('petty_settings').select('key, value').in('key', ['keeper_name', 'categories']),
+    supabase.from('petty_settings').select('key, value').in('key', ['keeper_name', 'categories', 'sheet_url']),
   ])
   loading.value = false
   if (r.error) msg.value = '讀取失敗：' + errText(r.error)
@@ -73,6 +74,7 @@ async function load() {
   const settings = Object.fromEntries((s.data ?? []).map((x) => [x.key, x.value]))
   keeper.value = settings.keeper_name ?? ''
   categories.value = parseCategories(settings.categories)
+  sheetUrl.value = settings.sheet_url ?? ''
   selected.value = new Set([...selected.value].filter((id) => list.value.some((x) => x.id === id)))
   refreshCounts()
 }
@@ -212,7 +214,10 @@ onMounted(load)
   <div class="page">
     <div class="page-head">
       <h2>管理</h2>
-      <button class="btn small" @click="load">重新整理</button>
+      <div class="head-actions">
+        <a v-if="sheetUrl" class="btn small" :href="sheetUrl" target="_blank" rel="noopener">開啟明細表</a>
+        <button class="btn small" @click="load">重新整理</button>
+      </div>
     </div>
     <div class="seg-tabs">
       <button v-for="t in TABS" :key="t.key" :class="{ on: tab === t.key }" @click="switchTab(t.key)">
