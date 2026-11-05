@@ -10,7 +10,7 @@ self.addEventListener('push', (e) => {
   e.waitUntil(self.registration.showNotification(d.title || '零用金申請', {
     body: d.body || '有新通知',
     icon: 'icon-192.png',
-    badge: 'icon-192.png',
+    badge: 'badge-96.png',   // Android 狀態列小圖示：透明背景單色，彩色圖會變白色方塊
     tag: d.tag,
     data: { url: d.url || './' },
   }))
