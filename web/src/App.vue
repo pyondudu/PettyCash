@@ -5,6 +5,7 @@ import { configured, supabase } from './lib/supabase'
 import { store, initAuth } from './lib/store'
 import { ROLES } from './lib/petty'
 import Login from './views/Login.vue'
+import { disablePush } from './lib/push'
 import { update, checkUpdate, applyUpdate, formatBuild, watchUpdates } from './lib/update'
 
 const ICON = import.meta.env.BASE_URL + 'app-icon.svg'
@@ -28,6 +29,8 @@ watch(() => update.status, (v) => {
 })
 
 async function logout() {
+  // 登出時取消這支手機的通知，換人登入不會收到前一個人的通知
+  await disablePush().catch(() => {})
   await supabase.auth.signOut()
   router.replace('/')
 }
@@ -57,6 +60,7 @@ async function logout() {
         </router-link>
         <div class="topbar-right">
           <span class="who">{{ store.member.name }}<span class="role-tag" :class="store.role">{{ ROLES[store.role] }}</span></span>
+          <router-link v-if="store.isApprover || store.isAdmin" to="/notify" class="btn ghost small">通知</router-link>
           <router-link to="/password" class="btn ghost small">改密碼</router-link>
           <button class="btn ghost small" @click="logout">登出</button>
         </div>
