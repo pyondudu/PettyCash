@@ -36,7 +36,7 @@ async function saveSub(sub) {
   if (error) throw error
 }
 
-// 這支手機目前有沒有開通知；有的話順便確認資料庫裡掛在目前登入的人
+// 這個裝置目前有沒有開通知；有的話順便確認資料庫裡掛在目前登入的人
 export async function pushEnabled() {
   if (pushSupport() !== 'ok' || Notification.permission !== 'granted') return false
   const sub = await (await registration()).pushManager.getSubscription()

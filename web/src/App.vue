@@ -29,7 +29,7 @@ watch(() => update.status, (v) => {
 })
 
 async function logout() {
-  // 登出時取消這支手機的通知，換人登入不會收到前一個人的通知
+  // 登出時取消這個裝置的通知，換人登入不會收到前一個人的通知
   await disablePush().catch(() => {})
   await supabase.auth.signOut()
   router.replace('/')

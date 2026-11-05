@@ -23,7 +23,7 @@ async function run(fn, done) {
 }
 
 const turnOn = () => run(enablePush, '已開啟通知。可以按「傳送測試通知」試試看。')
-const turnOff = () => run(disablePush, '已關閉這支手機的通知。')
+const turnOff = () => run(disablePush, '已關閉這個裝置的通知。')
 const test = () => run(sendTestPush, '已送出測試通知，幾秒內應該會收到。')
 
 onMounted(async () => { enabled.value = await pushEnabled().catch(() => false) })
@@ -34,12 +34,12 @@ onMounted(async () => { enabled.value = await pushEnabled().catch(() => false) }
     <h2>通知</h2>
     <fieldset class="card">
       <div class="stack">
-        <p v-if="store.isApprover">開啟後，每週五早上 9:00 如果有待核准的申請，這支手機會收到通知。</p>
-        <p v-else>開啟後，主管核准申請時，這支手機會收到通知（要在「設定」頁的「核准通知對象」裡）。</p>
-        <p class="muted small">通知只寫「有新通知」，不會顯示姓名和金額。每支手機要各自開啟；隨時可以關閉。</p>
+        <p v-if="store.isApprover">開啟後，每週五早上 9:00 如果有待核准的申請，這個裝置會收到通知。</p>
+        <p v-else>開啟後，主管核准申請時，這個裝置會收到通知（要在「設定」頁的「核准通知對象」裡）。</p>
+        <p class="muted small">通知只寫「有新通知」，不會顯示姓名和金額。手機、電腦每個裝置要各自開啟；隨時可以關閉。</p>
 
         <template v-if="support === 'ok'">
-          <p><strong>這支手機：</strong>{{ enabled ? '已開啟通知' : '尚未開啟通知' }}</p>
+          <p><strong>這個裝置：</strong>{{ enabled ? '已開啟通知' : '尚未開啟通知' }}</p>
           <div class="form-actions">
             <button v-if="!enabled" class="btn primary" :disabled="busy" @click="turnOn">開啟通知</button>
             <template v-else>
